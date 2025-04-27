@@ -125,3 +125,8 @@ dmypy.json
 
 # macOS
 .DS_Store
+
+# VS Code
+.vscode/
+*.code-workspace
+.history/
