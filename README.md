@@ -20,16 +20,17 @@ AATは微小重力環境下での実験データを分析するためのツー�
   - matplotlib
   - numpy
   - pandas
+  - openpyxl
 
 ## インストール方法
 1. リポジトリをクローン:
    ```
-   git clone https://github.com/yourusername/AAT.git
+   git clone https://github.com/sata04/AAT.git
    ```
 
-2. 依存パッケージのインストール:
+2. 必要なライブラリをインストール:
    ```
-   pip install -r requirements.txt
++  pip install -r requirements.txt
    ```
 
 ## 使用方法
@@ -84,8 +85,8 @@ AATは微小重力環境下での実験データを分析するためのツー�
 ## 出力ファイル
 分析結果は以下の形式で保存されます：
 - 重力レベルグラフ: `{ファイル名}_gravity_level_graph.png`
-- 統計データ: `{ファイル名}_analysis_results.xlsx`
+- 統計データおよび結果を含むExcelファイル: `{ファイル名}_processed.xlsx`  # 修正: コードに合わせて
 - G-quality分析結果: `{ファイル名}_g_quality_analysis.png`
 
 ## ライセンス
-このソフトウェアはMITライセンスの下で公開されています。詳細はLICENSE.mdファイルを参照してください。
+- このソフトウェアはApache License 2.0の下で公開されています。詳細はLICENSE.mdファイルを参照してください。

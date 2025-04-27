@@ -1,21 +1,56 @@
-# gui/settings_dialog.py
-# 設定ダイアログ
+#!/usr/bin/env python3
+# -*- coding: utf-8 -*-
+"""
+設定ダイアログモジュール
 
-from PyQt6.QtCore import Qt
+アプリケーションの設定パラメータを編集するためのダイアログUIを提供します。
+ユーザーが重力レベル解析に関連する様々なパラメータを調整できるようにします。
+"""
+
 from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLineEdit, QSpinBox, QVBoxLayout
+
+from core.logger import get_logger
+
+# ロガーの初期化
+logger = get_logger("settings_dialog")
 
 
 class SettingsDialog(QDialog):
+    """
+    アプリケーション設定を編集するダイアログ
+
+    データ列の指定、サンプリングレート、重力定数、グラフ範囲、
+    加速度閾値、終了重力レベル、解析ウィンドウサイズなど
+    多様な設定パラメータを編集するインターフェースを提供します。
+    """
+
     def __init__(self, config, parent=None):
+        """
+        設定ダイアログのコンストラクタ
+
+        Args:
+            config (dict): 現在の設定データ
+            parent (QWidget, optional): 親ウィジェット。デフォルトはNone。
+        """
         super().__init__(parent)
         self.config = config
         self.setWindowTitle("設定")
         self.setModal(True)
 
+        # レイアウトの初期化
+        self._init_layout()
+
+        logger.debug("設定ダイアログを初期化しました")
+
+    def _init_layout(self):
+        """
+        ダイアログのレイアウトとウィジェットを初期化する
+        """
         layout = QVBoxLayout(self)
         form_layout = QFormLayout()
 
         # 各設定項目のウィジェットを作成
+        # データ列設定
         self.time_column = QLineEdit(self.config["time_column"])
         form_layout.addRow("時間列:", self.time_column)
 
@@ -25,75 +60,127 @@ class SettingsDialog(QDialog):
         self.acceleration_column_drag_shield = QLineEdit(self.config["acceleration_column_drag_shield"])
         form_layout.addRow("加速度列 (Drag Shield):", self.acceleration_column_drag_shield)
 
+        # サンプリングレート設定
         self.sampling_rate = QSpinBox()
         self.sampling_rate.setRange(1, 10000)
         self.sampling_rate.setValue(self.config["sampling_rate"])
-        form_layout.addRow("サンプリングレート:", self.sampling_rate)
+        form_layout.addRow("サンプリングレート (Hz):", self.sampling_rate)
 
+        # 重力定数
         self.gravity_constant = QDoubleSpinBox()
-        self.gravity_constant.setRange(0, 100)
-        self.gravity_constant.setDecimals(5)
+        self.gravity_constant.setRange(9.0, 10.0)
+        self.gravity_constant.setDecimals(6)
+        self.gravity_constant.setSingleStep(0.000001)
         self.gravity_constant.setValue(self.config["gravity_constant"])
-        form_layout.addRow("重力定数:", self.gravity_constant)
+        form_layout.addRow("重力定数 (m/s²):", self.gravity_constant)
 
+        # グラフY軸範囲
         self.ylim_min = QDoubleSpinBox()
-        self.ylim_min.setRange(-100, 100)
+        self.ylim_min.setRange(-10.0, 10.0)
+        self.ylim_min.setDecimals(2)
+        self.ylim_min.setSingleStep(0.1)
         self.ylim_min.setValue(self.config["ylim_min"])
-        form_layout.addRow("Y軸最小値:", self.ylim_min)
+        form_layout.addRow("グラフY軸最小値:", self.ylim_min)
 
         self.ylim_max = QDoubleSpinBox()
-        self.ylim_max.setRange(-100, 100)
+        self.ylim_max.setRange(-10.0, 10.0)
+        self.ylim_max.setDecimals(2)
+        self.ylim_max.setSingleStep(0.1)
         self.ylim_max.setValue(self.config["ylim_max"])
-        form_layout.addRow("Y軸最大値:", self.ylim_max)
+        form_layout.addRow("グラフY軸最大値:", self.ylim_max)
 
+        # 加速度閾値
         self.acceleration_threshold = QDoubleSpinBox()
-        self.acceleration_threshold.setRange(0, 10)
-        self.acceleration_threshold.setDecimals(3)
-        self.acceleration_threshold.setValue(self.config.get("acceleration_threshold", 1.0))
+        self.acceleration_threshold.setRange(0.01, 10.0)
+        self.acceleration_threshold.setDecimals(2)
+        self.acceleration_threshold.setSingleStep(0.1)
+        self.acceleration_threshold.setValue(self.config["acceleration_threshold"])
         form_layout.addRow("加速度同期閾値 (m/s²):", self.acceleration_threshold)
 
+        # 終了重力レベル
         self.end_gravity_level = QDoubleSpinBox()
-        self.end_gravity_level.setRange(0, 100)
+        self.end_gravity_level.setRange(0.1, 10.0)
+        self.end_gravity_level.setDecimals(2)
+        self.end_gravity_level.setSingleStep(0.1)
         self.end_gravity_level.setValue(self.config["end_gravity_level"])
-        form_layout.addRow("終了Gravity_Level:", self.end_gravity_level)
+        form_layout.addRow("終了重力レベル (G):", self.end_gravity_level)
 
+        # ウィンドウサイズ
         self.window_size = QDoubleSpinBox()
-        self.window_size.setRange(0, 10)
-        self.window_size.setDecimals(3)
+        self.window_size.setRange(0.01, 10.0)
+        self.window_size.setDecimals(2)
+        self.window_size.setSingleStep(0.01)
         self.window_size.setValue(self.config["window_size"])
-        form_layout.addRow("ウィンドウサイズ(s):", self.window_size)
+        form_layout.addRow("解析ウィンドウサイズ (秒):", self.window_size)
 
-        self.g_quality_start = QDoubleSpinBox()
-        self.g_quality_start.setRange(0, 10)
-        self.g_quality_start.setDecimals(2)
-        self.g_quality_start.setValue(self.config["g_quality_start"])
-        form_layout.addRow("G-quality評価開始値:", self.g_quality_start)
+        # G-quality解析パラメータ
+        self._init_g_quality_widgets(form_layout)
 
-        self.g_quality_end = QDoubleSpinBox()
-        self.g_quality_end.setRange(0, 10)
-        self.g_quality_end.setDecimals(2)
-        self.g_quality_end.setValue(self.config["g_quality_end"])
-        form_layout.addRow("G-quality評価終了値:", self.g_quality_end)
-
-        self.g_quality_step = QDoubleSpinBox()
-        self.g_quality_step.setRange(0, 1)
-        self.g_quality_step.setDecimals(3)
-        self.g_quality_step.setValue(self.config["g_quality_step"])
-        form_layout.addRow("G-quality評価ステップ:", self.g_quality_step)
+        # 開始点からの最小秒数
+        self.min_seconds_after_start = QDoubleSpinBox()
+        self.min_seconds_after_start.setRange(0.0, 10.0)
+        self.min_seconds_after_start.setDecimals(2)
+        self.min_seconds_after_start.setSingleStep(0.1)
+        self.min_seconds_after_start.setValue(self.config.get("min_seconds_after_start", 0.0))
+        form_layout.addRow("終了点の開始点からの最小秒数 (秒):", self.min_seconds_after_start)
 
         layout.addLayout(form_layout)
 
-        # OKとキャンセルボタンを追加
-        buttons = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel, Qt.Orientation.Horizontal, self)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout.addWidget(buttons)
+        # ダイアログボタン
+        self._init_buttons(layout)
+
+    def _init_g_quality_widgets(self, form_layout):
+        """
+        G-quality解析関連のウィジェットを初期化する
+
+        Args:
+            form_layout (QFormLayout): 設定項目を追加するフォームレイアウト
+        """
+        # G-quality開始ウィンドウサイズ
+        self.g_quality_start = QDoubleSpinBox()
+        self.g_quality_start.setRange(0.01, 10.0)
+        self.g_quality_start.setDecimals(2)
+        self.g_quality_start.setSingleStep(0.01)
+        self.g_quality_start.setValue(self.config["g_quality_start"])
+        form_layout.addRow("G-quality解析開始ウィンドウサイズ (秒):", self.g_quality_start)
+
+        # G-quality終了ウィンドウサイズ
+        self.g_quality_end = QDoubleSpinBox()
+        self.g_quality_end.setRange(0.01, 10.0)
+        self.g_quality_end.setDecimals(2)
+        self.g_quality_end.setSingleStep(0.01)
+        self.g_quality_end.setValue(self.config["g_quality_end"])
+        form_layout.addRow("G-quality解析終了ウィンドウサイズ (秒):", self.g_quality_end)
+
+        # G-qualityステップサイズ
+        self.g_quality_step = QDoubleSpinBox()
+        self.g_quality_step.setRange(0.01, 1.0)
+        self.g_quality_step.setDecimals(2)
+        self.g_quality_step.setSingleStep(0.01)
+        self.g_quality_step.setValue(self.config["g_quality_step"])
+        form_layout.addRow("G-quality解析ステップ (秒):", self.g_quality_step)
+
+    def _init_buttons(self, layout):
+        """
+        ダイアログのボタンを初期化する
+
+        Args:
+            layout (QVBoxLayout): ボタンを追加するレイアウト
+        """
+        # OKとキャンセルボタン
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
+        button_box.accepted.connect(self.accept)
+        button_box.rejected.connect(self.reject)
+        layout.addWidget(button_box)
 
     def get_settings(self):
         """
-        現在の設定値を取得する
+        ダイアログからの設定値を辞書として取得する
+
+        Returns:
+            dict: 編集された設定データの辞書
         """
-        return {
+        settings = {
             "time_column": self.time_column.text(),
             "acceleration_column_inner_capsule": self.acceleration_column_inner_capsule.text(),
             "acceleration_column_drag_shield": self.acceleration_column_drag_shield.text(),
@@ -107,4 +194,8 @@ class SettingsDialog(QDialog):
             "g_quality_start": self.g_quality_start.value(),
             "g_quality_end": self.g_quality_end.value(),
             "g_quality_step": self.g_quality_step.value(),
+            "min_seconds_after_start": self.min_seconds_after_start.value(),
         }
+
+        logger.debug(f"設定変更: {settings}")
+        return settings
