@@ -1,4 +1,4 @@
-# AAT (Acceleration Analysis Tool)
+# AAT (Acceleration Analysis Tool) v8.2
 
 ## 概要
 AATは微小重力環境下での実験データを分析するためのツールです。Inner CapsuleとDrag Shieldの加速度データを読み込み、重力レベルを計算・可視化し、統計的分析を行うことができます。
@@ -12,6 +12,7 @@ AATは微小重力環境下での実験データを分析するためのツー�
 - G-quality評価モードによる詳細な重力レベル分析
 - 複数データの比較分析
 - 結果のExcelファイル出力とグラフの保存
+- 元の加速度データの保存機能
 
 ## システム要件
 - Python 3.7以上
@@ -107,7 +108,16 @@ AATは微小重力環境下での実験データを分析するためのツー�
 Excelファイルには以下のシートが含まれます：
 - `Gravity Level Data`: 時間と重力レベルのデータ
 - `Gravity Level Statistics`: 統計情報
+- `Acceleration Data`: 元の加速度データ
 - `G-quality Analysis`: G-quality分析結果（G-quality評価モード実行時）
+
+## 既知の問題
+- macOSでのウィンドウ移動に関する警告が表示されることがありますが、機能には影響しません
+- 非常に大きなCSVファイル（1GB以上）を処理する場合、メモリ使用量に注意してください
 
 ## ライセンス
 このソフトウェアはApache License 2.0の下で公開されています。詳細はLICENSE.mdファイルを参照してください。
+
+## コンタクト
+バグ報告や機能リクエストはGitHubのissueトラッカーにてお願いします：
+https://github.com/sata04/AAT/issues
