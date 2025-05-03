@@ -13,6 +13,7 @@ import sys
 
 import matplotlib.pyplot as plt
 import numpy as np
+import pandas as pd
 from matplotlib import font_manager
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
@@ -245,6 +246,9 @@ class MainWindow(QMainWindow):
 
                 # データの読み込みと処理
                 try:
+                    # 元のCSVデータを読み込む
+                    raw_data = pd.read_csv(file_path)
+
                     # データの読み込みを試みる
                     time, gravity_level_inner_capsule, gravity_level_drag_shield, adjusted_time = load_and_process_data(file_path, self.config)
                 except ValueError as e:
@@ -276,6 +280,9 @@ class MainWindow(QMainWindow):
 
                             # 再度データの読み込みを試みる
                             try:
+                                # 元のCSVデータを読み込む
+                                raw_data = pd.read_csv(file_path)
+
                                 time, gravity_level_inner_capsule, gravity_level_drag_shield, adjusted_time = load_and_process_data(
                                     file_path, temp_config
                                 )
@@ -298,6 +305,10 @@ class MainWindow(QMainWindow):
                                     )
                                     save_config(self.config)
                                     logger.info("列設定を保存しました")
+                                else:
+                                    # 保存しない場合でも、このファイルの処理には選択した列情報を使用するために
+                                    # 現在の処理中ではtemp_configを使い続ける
+                                    logger.info("列設定は一時的に使用されますが、保存はしません")
                             except Exception as e2:
                                 log_exception(e2, "選択された列でのデータ読み込み中にエラーが発生")
                                 QMessageBox.critical(self, "エラー", f"選択された列でのデータ読み込みに失敗しました: {str(e2)}")
@@ -326,6 +337,7 @@ class MainWindow(QMainWindow):
                     "filtered_gravity_level_inner_capsule": filtered_gravity_level_inner_capsule,
                     "filtered_gravity_level_drag_shield": filtered_gravity_level_drag_shield,
                     "end_index": end_index,
+                    "raw_data": raw_data,  # 元のCSVデータを保存
                 }
                 self.file_paths[file_name_without_ext] = file_path
                 logger.info(f"データ処理完了: {file_name_without_ext}")
@@ -350,6 +362,25 @@ class MainWindow(QMainWindow):
                     filtered_gravity_level_drag_shield, filtered_adjusted_time, self.config
                 )
 
+                # データエクスポート用の設定を準備
+                # 列選択ダイアログで選択した場合は、その選択情報を使用する
+                export_config = self.config.copy()
+                if "temp_config" in locals():
+                    # 列選択ダイアログで選択した列情報を優先的に使用
+                    export_config.update(
+                        {
+                            "time_column": temp_config["time_column"],
+                            "acceleration_column_inner_capsule": temp_config["acceleration_column_inner_capsule"],
+                            "acceleration_column_drag_shield": temp_config["acceleration_column_drag_shield"],
+                        }
+                    )
+                    logger.info(
+                        f"選択された列情報を使用してExcelエクスポート: "
+                        f"時間列={temp_config['time_column']}, "
+                        f"内カプセル加速度列={temp_config['acceleration_column_inner_capsule']}, "
+                        f"外カプセル加速度列={temp_config['acceleration_column_drag_shield']}"
+                    )
+
                 # データのエクスポート
                 export_data(
                     filtered_time,
@@ -364,7 +395,10 @@ class MainWindow(QMainWindow):
                     min_time_drag_shield,
                     min_std_drag_shield,
                     graph_path,
-                    self.config,  # 設定情報を渡す
+                    filtered_time,  # フィルタリング済みの時間データを追加
+                    filtered_adjusted_time,  # フィルタリング済みの調整時間データを追加
+                    export_config,  # 最新の設定情報を渡す
+                    raw_data,  # 元のCSVデータを渡す
                 )
                 logger.info(f"データエクスポート完了: {file_name_without_ext}")
 
@@ -562,8 +596,8 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v8を追加
-        ax.text(0.98, 0.02, "AAT-v8", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v8.2を追加
+        ax.text(0.98, 0.02, "AAT-v8.2", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         self.canvas.draw()
 
@@ -669,8 +703,8 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v8を追加
-        ax.text(0.98, 0.02, "AAT-v8", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v8.2を追加
+        ax.text(0.98, 0.02, "AAT-v8.2", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         self.canvas.draw()
 
@@ -715,8 +749,8 @@ class MainWindow(QMainWindow):
 
         self.figure.tight_layout()
 
-        # グラフの右下にAAT-v8を追加
-        ax.text(0.98, 0.02, "AAT-v8", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v8.2を追加
+        ax.text(0.98, 0.02, "AAT-v8.2", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         # グラフ保存パスを設定 (ファイル名_gq.png形式)
         csv_dir = os.path.dirname(original_file_path)
@@ -756,8 +790,8 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v8を追加
-        ax.text(0.98, 0.02, "AAT-v8", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v8.2を追加
+        ax.text(0.98, 0.02, "AAT-v8.2", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         self.canvas.draw()
 

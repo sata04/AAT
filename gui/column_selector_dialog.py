@@ -39,12 +39,14 @@ class ColumnSelectorDialog(QDialog):
         self.accel_columns = accel_columns
 
         self.setWindowTitle("データ列の選択")
-        self.setMinimumWidth(400)
+        self.setMinimumWidth(500)  # 幅を広げて長い列名を表示しやすくする
 
         self.layout = QVBoxLayout(self)
 
         # 説明ラベル
-        info_label = QLabel("CSVファイル内に複数の時間列または加速度列候補があります。\n使用する列を選択してください。")
+        info_label = QLabel(
+            "CSVファイル内に複数の時間列または加速度列候補があります。\n使用する列を選択してください。\n選択した列名はAcceleration dataの保存にも使用されます。"
+        )
         self.layout.addWidget(info_label)
 
         # 時間列の選択
@@ -52,24 +54,28 @@ class ColumnSelectorDialog(QDialog):
         time_label = QLabel("時間列:")
         self.time_combo = QComboBox()
         self.time_combo.addItems(self.time_columns)
+        # ドロップダウンの幅を広げて長い列名を表示できるようにする
+        self.time_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         time_layout.addWidget(time_label)
         time_layout.addWidget(self.time_combo)
         self.layout.addLayout(time_layout)
 
         # Inner Capsule 加速度列の選択
         inner_layout = QHBoxLayout()
-        inner_label = QLabel("Inner Capsule 加速度列:")
+        inner_label = QLabel("内カプセル加速度列 (Inner Capsule):")
         self.inner_combo = QComboBox()
         self.inner_combo.addItems(self.accel_columns)
+        self.inner_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         inner_layout.addWidget(inner_label)
         inner_layout.addWidget(self.inner_combo)
         self.layout.addLayout(inner_layout)
 
         # Drag Shield 加速度列の選択
         drag_layout = QHBoxLayout()
-        drag_label = QLabel("Drag Shield 加速度列:")
+        drag_label = QLabel("外カプセル加速度列 (Drag Shield):")
         self.drag_combo = QComboBox()
         self.drag_combo.addItems(self.accel_columns)
+        self.drag_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         # 2つ以上の加速度列がある場合はインデックス1を選択（0とは異なる選択肢）
         if len(self.accel_columns) > 1:
             self.drag_combo.setCurrentIndex(1)
