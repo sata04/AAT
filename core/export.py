@@ -270,14 +270,15 @@ def export_data(
             stats_df.to_excel(writer, sheet_name="Gravity Level Statistics", index=False)
 
             # 加速度データがある場合は別シートに追加
-            if acceleration_data is not None:
-                acceleration_data.to_excel(writer, sheet_name="Acceleration Data", index=False)
-                logger.info(f"加速度データをシートに追加しました: {len(acceleration_data)}行")
-            else:
-                logger.warning("加速度データが作成されなかったため、シートに追加されません")
+        if acceleration_data is not None:
+            acceleration_data.to_excel(writer, sheet_name="Acceleration Data", index=False)
+            logger.info(f"加速度データをシートに追加しました: {len(acceleration_data)}行")
+        else:
+            logger.warning("加速度データが作成されなかったため、シートに追加されません")
 
-        # 保存完了メッセージ
-        message = f"Gravity Levelデータが {output_file_path} に保存されました\nグラフは {new_graph_path} に保存されました"
+        # 保存完了メッセージ - フォルダ名だけを表示するように変更
+        graphs_folder = os.path.basename(os.path.dirname(new_graph_path))
+        message = f"Gravity Levelデータが {output_file_path} に保存されました\nグラフは {graphs_folder} フォルダに保存されました"
         QMessageBox.information(None, "保存完了", message)
 
         return output_file_path
@@ -291,18 +292,20 @@ def export_data(
         raise ValueError(error_msg)
 
 
-def export_g_quality_data(g_quality_data, original_file_path):
+def export_g_quality_data(g_quality_data, original_file_path, g_quality_graph_path=None):
     """
     G-quality解析の結果をエクスポートする
 
     異なるウィンドウサイズでのG-quality評価結果をExcelファイルに追加または新規作成します。
     既存のExcelファイルがある場合は、G-quality Analysis シートを更新します。
+    また、G-qualityグラフが提供されている場合は、指定されたディレクトリにコピーします。
 
     Args:
         g_quality_data (list): G-quality解析の結果データ
             各要素は (window_size, min_time_inner_capsule, min_mean_inner_capsule, min_std_inner_capsule,
                       min_time_drag_shield, min_mean_drag_shield, min_std_drag_shield) の形式のタプル
         original_file_path (str): 元のCSVファイルのパス
+        g_quality_graph_path (str, optional): G-qualityグラフの画像ファイルパス。指定された場合はグラフをコピーします。
 
     Returns:
         str or None: 出力されたExcelファイルのパス、または失敗した場合はNone
@@ -316,6 +319,20 @@ def export_g_quality_data(g_quality_data, original_file_path):
 
     # 出力ディレクトリ構造を作成
     results_dir, graphs_dir = create_output_directories(csv_dir)
+
+    # G-qualityグラフの処理
+    if g_quality_graph_path and os.path.exists(g_quality_graph_path):
+        # グラフファイルの新しいパスを設定（短い名前を使用）
+        new_graph_path = os.path.join(graphs_dir, f"{base_name}_gq.png")
+
+        # 常に上書きコピーを実行（パス比較を行わない）
+        import shutil
+
+        try:
+            shutil.copy2(g_quality_graph_path, new_graph_path)
+            logger.info(f"G-qualityグラフを保存しました: {g_quality_graph_path} -> {new_graph_path}")
+        except Exception as e:
+            logger.warning(f"G-qualityグラフの保存中にエラーが発生しました: {e}")
 
     # データフレームの作成
     df = pd.DataFrame(

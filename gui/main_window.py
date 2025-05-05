@@ -17,6 +17,7 @@ import pandas as pd
 from matplotlib import font_manager
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.widgets import SpanSelector
 from PyQt6.QtCore import QMutex, Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication,
@@ -65,6 +66,9 @@ class MainWindow(QMainWindow):
         """
         super().__init__()
         logger.info("メインウィンドウの初期化を開始")
+
+        # Qtメッセージの抑制
+        self._suppress_qt_messages()
 
         # 日本語フォント設定
         self._setup_japanese_font()
@@ -215,6 +219,9 @@ class MainWindow(QMainWindow):
         self.table = QTableWidget()
         splitter.addWidget(self.table)
 
+        # 範囲選択機能の変数を初期化
+        self.span_selectors = []
+
     def _initialize_data(self):
         """
         データと状態変数を初期化する
@@ -240,6 +247,31 @@ class MainWindow(QMainWindow):
 
         # ファイル名とパスのマッピング
         self.file_paths = {}  # ファイル名とパスを保存する辞書
+
+    def _suppress_qt_messages(self):
+        """
+        特定のQtメッセージを抑制する
+        """
+        try:
+            from PyQt6.QtCore import QtMsgType, qInstallMessageHandler
+
+            def message_handler(msg_type, context, message):
+                # Layer-backingのメッセージを抑制
+                if "Layer-backing is always enabled" in message:
+                    return
+                # その他のメッセージは標準のハンドラで処理
+                if msg_type == QtMsgType.QtWarningMsg:
+                    logger.warning(f"Qt Warning: {message}")
+                elif msg_type == QtMsgType.QtCriticalMsg:
+                    logger.error(f"Qt Critical: {message}")
+                elif msg_type == QtMsgType.QtFatalMsg:
+                    logger.critical(f"Qt Fatal: {message}")
+
+            # カスタムメッセージハンドラを設定
+            qInstallMessageHandler(message_handler)
+            logger.info("Qtメッセージハンドラを設定しました")
+        except Exception as e:
+            log_exception(e, "Qtメッセージハンドラの設定に失敗")
 
     # ------------------------------------------------
     # ファイル処理関連メソッド
@@ -620,10 +652,12 @@ class MainWindow(QMainWindow):
         # 結果を保存
         self.processed_data[dataset_name]["g_quality_data"] = g_quality_data
 
-        # 結果をファイルに保存
-        if original_file_path:
-            export_g_quality_data(g_quality_data, original_file_path)
+        # G-qualityグラフを描画
+        graph_path = self.plot_g_quality_data(g_quality_data, dataset_name)
 
+        # 結果をファイルに保存（グラフパスも渡す）
+        if original_file_path:
+            export_g_quality_data(g_quality_data, original_file_path, graph_path)
         # キャッシュに保存
         if self.config.get("use_cache", True) and original_file_path:
             from core.cache_manager import generate_cache_id, save_to_cache
@@ -856,8 +890,24 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v8.3を追加
-        ax.text(0.98, 0.02, "AAT-v8.3", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v9.0.0を追加
+        ax.text(0.98, 0.02, "AAT-v9.0.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+
+        # 範囲選択機能を追加
+        # 既存のSpanSelectorをクリア
+        self.span_selectors.clear()
+
+        # SpanSelectorを追加
+        span = SpanSelector(
+            ax,
+            self.on_select_range,
+            "horizontal",
+            useblit=True,
+            props=dict(alpha=0.3, facecolor="tab:blue"),
+            interactive=True,
+            drag_from_anywhere=True,
+        )
+        self.span_selectors.append(span)
 
         self.canvas.draw()
 
@@ -963,8 +1013,11 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v8.3を追加
-        ax.text(0.98, 0.02, "AAT-v8.3", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v9.0.0を追加
+        ax.text(0.98, 0.02, "AAT-v9.0.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+
+        # 比較モードではSpanSelectorを追加しない（選択範囲の統計計算を無効化）
+        self.span_selectors.clear()
 
         self.canvas.draw()
 
@@ -982,6 +1035,7 @@ class MainWindow(QMainWindow):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
 
+        # データをアンパック
         (
             window_sizes,
             min_times_inner_capsule,
@@ -1009,8 +1063,11 @@ class MainWindow(QMainWindow):
 
         self.figure.tight_layout()
 
-        # グラフの右下にAAT-v8.3を追加
-        ax.text(0.98, 0.02, "AAT-v8.3", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v9.0.0を追加
+        ax.text(0.98, 0.02, "AAT-v9.0.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+
+        # SpanSelectorをクリア（G-qualityモードでは選択範囲機能を無効化）
+        self.span_selectors.clear()
 
         # グラフ保存パスを設定 (ファイル名_gq.png形式)
         csv_dir = os.path.dirname(original_file_path)
@@ -1050,8 +1107,11 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v8.3を追加
-        ax.text(0.98, 0.02, "AAT-v8.3", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v9.0.0を追加
+        ax.text(0.98, 0.02, "AAT-v9.0.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+
+        # 全体表示モードではSpanSelectorを追加しない（選択範囲の統計計算を無効化）
+        self.span_selectors.clear()
 
         self.canvas.draw()
 
@@ -1248,11 +1308,6 @@ class MainWindow(QMainWindow):
     def on_g_quality_analysis_finished(self, g_quality_data, file_name, original_file_path):
         """
         G-quality解析が完了した時の処理
-
-        Args:
-            g_quality_data (list): G-quality解析結果
-            file_name (str): ファイル名
-            original_file_path (str): 元のファイルパス
         """
         self.progress_bar.setVisible(False)
         self.is_g_quality_analysis_running = False
@@ -1267,14 +1322,17 @@ class MainWindow(QMainWindow):
             self.file_paths[file_name] = original_file_path
             logger.info(f"ファイルパスを登録: {file_name} -> {original_file_path}")
 
-        # 結果をExcelファイルに出力
+        # グラフを描画
+        graph_path = self.plot_g_quality_data(g_quality_data, file_name)
+
+        # 結果をExcelファイルに出力（グラフパスも渡す）
         if original_file_path:
-            export_path = export_g_quality_data(g_quality_data, original_file_path)
+            export_path = export_g_quality_data(g_quality_data, original_file_path, graph_path)
             if export_path:
                 QMessageBox.information(self, "保存完了", f"G-quality解析の結果が {export_path} に追加されました")
 
-        # グラフを描画
-        self.plot_g_quality_data(g_quality_data, file_name)
+        # この行を削除する（重複呼び出し）
+        # self.plot_g_quality_data(g_quality_data, file_name)
 
         # テーブルを更新
         self.update_g_quality_table()
@@ -1362,3 +1420,143 @@ class MainWindow(QMainWindow):
 
         # 親クラスのcloseEventを呼び出し
         super().closeEvent(event)
+
+    def on_select_range(self, xmin, xmax):
+        """
+        範囲選択時のコールバック関数
+
+        Args:
+            xmin (float): 選択範囲の最小値
+            xmax (float): 選択範囲の最大値
+        """
+        # 何も選択されていない場合やドラッグ距離が小さすぎる場合は無視
+        if xmax - xmin < 0.001:
+            return
+
+        # G-qualityモードの場合は処理しない
+        if self.is_g_quality_mode:
+            return
+
+        selected_dataset = self.dataset_selector.currentText()
+        if selected_dataset in self.processed_data:
+            data = self.processed_data[selected_dataset]
+
+            # Inner Capsuleのデータ
+            inner_time = data["filtered_time"]
+            inner_gravity = data["filtered_gravity_level_inner_capsule"]
+
+            # Drag Shieldのデータ
+            drag_time = data["filtered_adjusted_time"]
+            drag_gravity = data["filtered_gravity_level_drag_shield"]
+
+            # 選択範囲内のデータを抽出して統計計算
+            self.calculate_selected_range_statistics(inner_time, inner_gravity, drag_time, drag_gravity, xmin, xmax)
+
+            # 選択範囲をハイライト表示
+            self.highlight_selected_range(xmin, xmax)
+
+    def calculate_selected_range_statistics(self, inner_time, inner_gravity, drag_time, drag_gravity, xmin, xmax):
+        """
+        選択した範囲内のデータの統計情報を計算する
+
+        Args:
+            inner_time (pandas.Series): Inner Capsuleの時間データ
+            inner_gravity (pandas.Series): Inner Capsuleの重力レベルデータ
+            drag_time (pandas.Series): Drag Shieldの時間データ
+            drag_gravity (pandas.Series): Drag Shieldの重力レベルデータ
+            xmin (float): 選択範囲の開始時間
+            xmax (float): 選択範囲の終了時間
+        """
+        from core.statistics import calculate_range_statistics
+
+        # 選択範囲内のデータをフィルタリング
+        inner_mask = (inner_time >= xmin) & (inner_time <= xmax)
+        drag_mask = (drag_time >= xmin) & (drag_time <= xmax)
+
+        # マスクが空の場合は何もしない
+        if not inner_mask.any() or not drag_mask.any():
+            QMessageBox.warning(self, "警告", "選択範囲内にデータがありません。")
+            return
+
+        # 統計情報を計算
+        inner_stats = calculate_range_statistics(inner_gravity[inner_mask].values)
+        drag_stats = calculate_range_statistics(drag_gravity[drag_mask].values)
+
+        # 結果を表示するダイアログを呼び出し
+        self.show_range_statistics_dialog(xmin, xmax, inner_stats, drag_stats)
+
+    def highlight_selected_range(self, xmin, xmax):
+        """
+        選択した範囲をグラフ上でハイライト表示する
+
+        Args:
+            xmin (float): 選択範囲の開始時間
+            xmax (float): 選択範囲の終了時間
+        """
+        # 既存のハイライトをクリア
+        if hasattr(self, "highlight_patches"):
+            for patch in self.highlight_patches:
+                # 単純に非表示にする - パッチの削除は試みない
+                patch.set_visible(False)
+
+        self.highlight_patches = []
+
+        # 現在のグラフ上で範囲を示すハイライトを追加
+        axes = self.figure.get_axes()
+        for ax in axes:
+            patch = ax.axvspan(xmin, xmax, alpha=0.2, color="yellow")
+            self.highlight_patches.append(patch)
+
+        self.canvas.draw()
+
+    def show_range_statistics_dialog(self, xmin, xmax, inner_stats, drag_stats):
+        """
+        選択範囲の統計情報を表示するダイアログを表示
+
+        Args:
+            xmin (float): 選択範囲の開始時間
+            xmax (float): 選択範囲の終了時間
+            inner_stats (dict): Inner Capsuleの統計情報
+            drag_stats (dict): Drag Shieldの統計情報
+        """
+        from PyQt6.QtWidgets import QDialog, QLabel, QPushButton, QTableWidget, QTableWidgetItem, QVBoxLayout
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("選択範囲の統計情報")
+        dialog.setMinimumWidth(500)
+
+        layout = QVBoxLayout()
+
+        # 選択範囲の情報
+        range_label = QLabel(f"選択範囲: {xmin:.4f}秒 ～ {xmax:.4f}秒 (範囲: {xmax - xmin:.4f}秒)")
+        layout.addWidget(range_label)
+
+        # 統計情報テーブル
+        table = QTableWidget(6, 3)  # 6行3列
+        table.setHorizontalHeaderLabels(["統計量", "Inner Capsule", "Drag Shield"])
+
+        # テーブルデータ設定
+        stats_items = [
+            ("データポイント数", inner_stats["count"], drag_stats["count"]),
+            ("平均値 (G)", inner_stats["mean"], drag_stats["mean"]),
+            ("絶対値平均 (G)", inner_stats["abs_mean"], drag_stats["abs_mean"]),
+            ("標準偏差 (G)", inner_stats["std"], drag_stats["std"]),
+            ("最小値 (G)", inner_stats["min"], drag_stats["min"]),
+            ("最大値 (G)", inner_stats["max"], drag_stats["max"]),
+        ]
+
+        for i, (name, inner_val, drag_val) in enumerate(stats_items):
+            table.setItem(i, 0, QTableWidgetItem(name))
+            table.setItem(i, 1, QTableWidgetItem(f"{inner_val:.6f}" if inner_val is not None else "N/A"))
+            table.setItem(i, 2, QTableWidgetItem(f"{drag_val:.6f}" if drag_val is not None else "N/A"))
+
+        table.resizeColumnsToContents()
+        layout.addWidget(table)
+
+        # 閉じるボタン
+        close_button = QPushButton("閉じる")
+        close_button.clicked.connect(dialog.accept)
+        layout.addWidget(close_button)
+
+        dialog.setLayout(layout)
+        dialog.exec()

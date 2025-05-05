@@ -1,7 +1,7 @@
 {
-    "time_column": "Data Set 1:Time(s)",
-    "acceleration_column_inner_capsule": "Data Set 1:Z-axis acceleration 1(m/s\u00b2)",
-    "acceleration_column_drag_shield": "Data Set 1:Z-axis acceleration 2(m/s\u00b2)",
+    "time_column": "\u30c7\u30fc\u30bf\u30bb\u30c3\u30c81:\u6642\u9593(s)",
+    "acceleration_column_inner_capsule": "\u30c7\u30fc\u30bf\u30bb\u30c3\u30c81:Z-axis acceleration 1(m/s\u00b2)",
+    "acceleration_column_drag_shield": "\u30c7\u30fc\u30bf\u30bb\u30c3\u30c81:Z-axis acceleration 2(m/s\u00b2)",
     "sampling_rate": 1000,
     "gravity_constant": 9.79758,
     "ylim_min": -1.0,
