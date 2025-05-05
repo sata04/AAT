@@ -17,6 +17,9 @@ from core.logger import get_logger, log_exception
 # ロガーの初期化
 logger = get_logger("config")
 
+# アプリケーションのバージョン情報
+APP_VERSION = "8.3"
+
 
 def load_config():
     """
@@ -45,6 +48,9 @@ def load_config():
         "g_quality_end": 1.0,
         "g_quality_step": 0.05,
         "min_seconds_after_start": 0.0,  # 開始点からの最小秒数（デフォルトは0秒）
+        "auto_calculate_g_quality": True,  # ファイル読み込み時にG-quality評価を自動計算
+        "use_cache": True,  # 処理済みデータのキャッシュを使用するかどうか
+        "app_version": APP_VERSION,  # アプリケーションバージョン
     }
     script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     config_path = os.path.join(script_dir, "config.json")
@@ -60,6 +66,10 @@ def load_config():
         for key in default_config:
             if key in user_config:
                 default_config[key] = user_config[key]
+
+        # バージョン情報は常に最新を使用
+        default_config["app_version"] = APP_VERSION
+
         logger.info("設定ファイルの読み込みに成功しました")
     except FileNotFoundError:
         logger.warning(f"設定ファイルが見つかりません: {config_path}")
@@ -77,6 +87,7 @@ def save_config(config):
     設定ファイルを保存する
 
     指定された設定情報をJSONファイルに保存します。
+    エラー時は既存の設定を保護するためにバックアップを作成します。
 
     Args:
         config (dict): 保存する設定情報
@@ -86,14 +97,34 @@ def save_config(config):
     """
     script_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
     config_path = os.path.join(script_dir, "config.json")
+    backup_path = os.path.join(script_dir, "config.json.bak")
+
     logger.debug(f"設定を保存します: {config}")
 
     try:
+        # 既存の設定ファイルがあればバックアップ
+        if os.path.exists(config_path):
+            import shutil
+
+            shutil.copy2(config_path, backup_path)
+            logger.debug(f"設定ファイルをバックアップしました: {backup_path}")
+
         with open(config_path, "w") as f:
             json.dump(config, f, indent=4)
         logger.info(f"設定ファイルを正常に保存しました: {config_path}")
         return True
     except Exception as e:
         log_exception(e, "設定の保存中にエラーが発生しました")
+
+        # バックアップから復元を試みる
+        if os.path.exists(backup_path):
+            try:
+                import shutil
+
+                shutil.copy2(backup_path, config_path)
+                logger.info(f"バックアップから設定を復元しました: {backup_path}")
+            except Exception as e2:
+                log_exception(e2, "バックアップからの復元に失敗しました")
+
         QMessageBox.warning(None, "設定保存エラー", f"設定の保存中にエラーが発生しました: {e}")
         return False

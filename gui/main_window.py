@@ -17,7 +17,7 @@ import pandas as pd
 from matplotlib import font_manager
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
-from PyQt6.QtCore import QMutex, Qt
+from PyQt6.QtCore import QMutex, Qt, QTimer
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -132,6 +132,11 @@ class MainWindow(QMainWindow):
         self.status_label = QLabel("ファイルを選択してください")
         self.main_layout.addWidget(self.status_label)
 
+        # 処理状況表示ラベルの追加
+        self.processing_status_label = QLabel("")
+        self.processing_status_label.setVisible(False)
+        self.main_layout.addWidget(self.processing_status_label)
+
         # ボタンレイアウトの設定
         button_layout = QHBoxLayout()
 
@@ -151,10 +156,28 @@ class MainWindow(QMainWindow):
         self.g_quality_mode_button.clicked.connect(self.toggle_g_quality_mode)
         button_layout.addWidget(self.g_quality_mode_button)
 
-        # 進行度バーの追加
+        # 進行度バーのレイアウト
+        progress_layout = QVBoxLayout()
+
+        # ファイル単位の進捗バー
+        self.file_progress_label = QLabel("ファイル処理進捗:")
+        self.file_progress_label.setVisible(False)
+        progress_layout.addWidget(self.file_progress_label)
+
+        self.file_progress_bar = QProgressBar(self)
+        self.file_progress_bar.setVisible(False)
+        progress_layout.addWidget(self.file_progress_bar)
+
+        # 全体の進捗バー
+        self.progress_label = QLabel("全体進捗:")
+        self.progress_label.setVisible(False)
+        progress_layout.addWidget(self.progress_label)
+
         self.progress_bar = QProgressBar(self)
         self.progress_bar.setVisible(False)
-        self.main_layout.addWidget(self.progress_bar)
+        progress_layout.addWidget(self.progress_bar)
+
+        self.main_layout.addLayout(progress_layout)
 
         # 全データ表示ボタン
         self.show_all_button = QPushButton("全体を表示")
@@ -228,7 +251,8 @@ class MainWindow(QMainWindow):
 
         ファイル選択ダイアログを表示し、選択されたCSVファイルを
         読み込んで処理します。CSVファイル内の列が判断できない場合は
-        列選択ダイアログを表示します。
+        列選択ダイアログを表示します。キャッシュが有効な場合は
+        キャッシュからデータを読み込みます。
         """
         try:
             file_paths, _ = QFileDialog.getOpenFileNames(self, "CSVファイルを選択", "", "CSV files (*.csv)")
@@ -236,21 +260,96 @@ class MainWindow(QMainWindow):
                 logger.info("ファイルは選択されませんでした")
                 return
 
-            logger.info(f"選択されたファイル数: {len(file_paths)}")
+            total_files = len(file_paths)
+            logger.info(f"選択されたファイル数: {total_files}")
             self.status_label.setText("処理中...")
+
+            # 進捗表示の初期化
+            self.progress_label.setText("全体進捗:")
+            self.progress_label.setVisible(True)
+            self.progress_bar.setVisible(True)
+            self.progress_bar.setValue(0)
+            self.progress_bar.setMaximum(total_files)
+
+            # ファイル進捗表示の初期化
+            self.file_progress_label.setText("ファイル処理進捗:")
+            self.file_progress_label.setVisible(True)
+            self.file_progress_bar.setVisible(True)
+            self.file_progress_bar.setValue(0)
+            self.file_progress_bar.setMaximum(100)
+
+            # 処理状況表示の初期化
+            self.processing_status_label.setVisible(True)
+            self.processing_status_label.setText("処理を開始します...")
+
             QApplication.processEvents()
 
-            for file_path in file_paths:
-                logger.info(f"ファイル処理開始: {file_path}")
+            # キャッシュモジュールをインポート
+            from core.cache_manager import generate_cache_id, has_valid_cache, load_from_cache, save_to_cache
+
+            for file_idx, file_path in enumerate(file_paths):
+                logger.info(f"ファイル処理開始 ({file_idx + 1}/{total_files}): {file_path}")
                 file_name_without_ext = os.path.splitext(os.path.basename(file_path))[0]
+
+                # 進捗更新
+                self.progress_bar.setValue(file_idx)
+                self.processing_status_label.setText(f"処理中: {file_name_without_ext} ({file_idx + 1}/{total_files})")
+                QApplication.processEvents()
+
+                # キャッシュの確認
+                if self.config.get("use_cache", True):
+                    has_cache, cache_id = has_valid_cache(file_path, self.config)
+                    if has_cache:
+                        # キャッシュの再利用について確認
+                        reply = QMessageBox.question(
+                            self,
+                            "キャッシュ検出",
+                            f"このファイル({file_name_without_ext})の処理済みデータが見つかりました。\n再利用しますか？",
+                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                        )
+
+                        if reply == QMessageBox.StandardButton.Yes:
+                            # キャッシュからデータを読み込む
+                            self.processing_status_label.setText(f"キャッシュからデータを読み込み中... ({file_idx + 1}/{total_files})")
+                            QApplication.processEvents()
+
+                            cached_data = load_from_cache(file_path, cache_id)
+                            if cached_data:
+                                # キャッシュデータをロード
+                                self.processed_data[file_name_without_ext] = cached_data
+                                self.file_paths[file_name_without_ext] = file_path
+                                logger.info(f"キャッシュからデータをロードしました: {file_name_without_ext}")
+
+                                # ファイル進捗を100%に設定
+                                self.file_progress_bar.setValue(100)
+
+                                # 自動G-quality評価がオンで、キャッシュにG-quality評価がない場合は計算
+                                if self.config.get("auto_calculate_g_quality", True) and "g_quality_data" not in cached_data:
+                                    self.processing_status_label.setText(f"G-quality評価を計算中... ({file_idx + 1}/{total_files})")
+                                    QApplication.processEvents()
+
+                                    # G-quality評価を計算
+                                    self.calculate_g_quality_for_dataset(file_name_without_ext, file_idx, total_files)
+
+                                # 次のファイルへ
+                                continue
+
+                # 通常の処理フロー（キャッシュがない場合またはキャッシュを使用しない場合）
+                self.processing_status_label.setText(f"データを読み込み中... ({file_idx + 1}/{total_files})")
+                QApplication.processEvents()
 
                 # データの読み込みと処理
                 try:
                     # 元のCSVデータを読み込む
                     raw_data = pd.read_csv(file_path)
+                    self.file_progress_bar.setValue(20)
+                    QApplication.processEvents()
 
                     # データの読み込みを試みる
                     time, gravity_level_inner_capsule, gravity_level_drag_shield, adjusted_time = load_and_process_data(file_path, self.config)
+                    self.file_progress_bar.setValue(40)
+                    QApplication.processEvents()
+
                 except ValueError as e:
                     # 特定のエラーメッセージの場合は列選択ダイアログを表示
                     if len(e.args) > 1 and e.args[0] == "必要な列が見つかりません。列の選択が必要です。":
@@ -282,10 +381,14 @@ class MainWindow(QMainWindow):
                             try:
                                 # 元のCSVデータを読み込む
                                 raw_data = pd.read_csv(file_path)
+                                self.file_progress_bar.setValue(20)
+                                QApplication.processEvents()
 
                                 time, gravity_level_inner_capsule, gravity_level_drag_shield, adjusted_time = load_and_process_data(
                                     file_path, temp_config
                                 )
+                                self.file_progress_bar.setValue(40)
+                                QApplication.processEvents()
 
                                 # 列選択が成功した場合、ユーザーに設定を保存するか尋ねる
                                 reply = QMessageBox.question(
@@ -322,9 +425,14 @@ class MainWindow(QMainWindow):
                         raise
 
                 # データのフィルタリング
+                self.processing_status_label.setText(f"データをフィルタリング中... ({file_idx + 1}/{total_files})")
+                QApplication.processEvents()
+
                 filtered_time, filtered_gravity_level_inner_capsule, filtered_gravity_level_drag_shield, filtered_adjusted_time, end_index = (
                     filter_data(time, gravity_level_inner_capsule, gravity_level_drag_shield, adjusted_time, self.config)
                 )
+                self.file_progress_bar.setValue(60)
+                QApplication.processEvents()
 
                 # 処理結果を保存
                 self.processed_data[file_name_without_ext] = {
@@ -342,7 +450,18 @@ class MainWindow(QMainWindow):
                 self.file_paths[file_name_without_ext] = file_path
                 logger.info(f"データ処理完了: {file_name_without_ext}")
 
+                # データをキャッシュに保存
+                if self.config.get("use_cache", True):
+                    self.processing_status_label.setText(f"データをキャッシュに保存中... ({file_idx + 1}/{total_files})")
+                    QApplication.processEvents()
+
+                    cache_id = generate_cache_id(file_path, self.config)
+                    save_to_cache(self.processed_data[file_name_without_ext], file_path, cache_id, self.config)
+
                 # グラフの作成と保存
+                self.processing_status_label.setText(f"グラフを作成中... ({file_idx + 1}/{total_files})")
+                QApplication.processEvents()
+
                 graph_path = self.plot_gravity_level(
                     filtered_time,
                     filtered_adjusted_time,
@@ -353,14 +472,21 @@ class MainWindow(QMainWindow):
                     file_path,
                 )
                 logger.info(f"グラフを保存: {graph_path}")
+                self.file_progress_bar.setValue(70)
+                QApplication.processEvents()
 
                 # 統計情報の計算と保存
+                self.processing_status_label.setText(f"統計情報を計算中... ({file_idx + 1}/{total_files})")
+                QApplication.processEvents()
+
                 min_mean_inner_capsule, min_time_inner_capsule, min_std_inner_capsule = calculate_statistics(
                     filtered_gravity_level_inner_capsule, filtered_time, self.config
                 )
                 min_mean_drag_shield, min_time_drag_shield, min_std_drag_shield = calculate_statistics(
                     filtered_gravity_level_drag_shield, filtered_adjusted_time, self.config
                 )
+                self.file_progress_bar.setValue(80)
+                QApplication.processEvents()
 
                 # データエクスポート用の設定を準備
                 # 列選択ダイアログで選択した場合は、その選択情報を使用する
@@ -382,6 +508,9 @@ class MainWindow(QMainWindow):
                     )
 
                 # データのエクスポート
+                self.processing_status_label.setText(f"データをエクスポート中... ({file_idx + 1}/{total_files})")
+                QApplication.processEvents()
+
                 export_data(
                     filtered_time,
                     filtered_adjusted_time,
@@ -401,17 +530,115 @@ class MainWindow(QMainWindow):
                     raw_data,  # 元のCSVデータを渡す
                 )
                 logger.info(f"データエクスポート完了: {file_name_without_ext}")
+                self.file_progress_bar.setValue(90)
+                QApplication.processEvents()
+
+                # 自動G-quality評価がオンの場合は計算
+                if self.config.get("auto_calculate_g_quality", True):
+                    self.calculate_g_quality_for_dataset(file_name_without_ext, file_idx, total_files)
+
+                # ファイル処理完了
+                self.file_progress_bar.setValue(100)
+                QApplication.processEvents()
+
+            # 全体進捗を完了に設定
+            self.progress_bar.setValue(total_files)
 
             # UI更新
             self.update_table()
             self.update_dataset_selector()
             self.status_label.setText("処理が完了しました")
+            self.processing_status_label.setText("すべてのファイルの処理が完了しました")
             logger.info("すべてのファイルの処理が完了しました")
+
+            # 3秒後にプログレスバーを非表示にする
+            QTimer.singleShot(3000, self.hide_progress_bars)
 
         except Exception as e:
             log_exception(e, "ファイル処理中に例外が発生")
             self.status_label.setText("エラーが発生しました")
+            self.processing_status_label.setText(f"エラー: {str(e)}")
             QMessageBox.critical(self, "エラー", str(e))
+
+    def calculate_g_quality_for_dataset(self, dataset_name, file_idx, total_files):
+        """
+        指定されたデータセットに対してG-quality評価を行う
+
+        Args:
+            dataset_name (str): データセット名
+            file_idx (int): ファイルインデックス
+            total_files (int): 総ファイル数
+        """
+        if dataset_name not in self.processed_data:
+            logger.warning(f"データセットが見つかりません: {dataset_name}")
+            return
+
+        data = self.processed_data[dataset_name]
+        original_file_path = self.file_paths.get(dataset_name)
+
+        # G-quality評価が既に存在するかチェック
+        if "g_quality_data" in data:
+            logger.info(f"G-quality評価は既に存在します: {dataset_name}")
+            return
+
+        self.processing_status_label.setText(f"G-quality評価を計算中... ({file_idx + 1}/{total_files})")
+        QApplication.processEvents()
+
+        # G-qualityワーカーを作成して実行
+        worker = GQualityWorker(
+            data["filtered_time"],
+            data["filtered_gravity_level_inner_capsule"],
+            data["filtered_gravity_level_drag_shield"],
+            self.config,
+            file_idx,
+            total_files,
+        )
+
+        # 同期的に実行する（非同期実行の複雑さを避けるため）
+        g_quality_data = []
+
+        # 進捗状況更新のためのコールバック
+        def update_file_progress(value):
+            self.file_progress_bar.setValue(value)
+            QApplication.processEvents()
+
+        def update_status(status):
+            self.processing_status_label.setText(status)
+            QApplication.processEvents()
+
+        # シグナルを接続
+        worker.progress.connect(update_file_progress)
+        worker.status_update.connect(update_status)
+
+        # ワーカーを実行
+        worker.run()
+        g_quality_data = worker.get_results()
+
+        # 結果を保存
+        self.processed_data[dataset_name]["g_quality_data"] = g_quality_data
+
+        # 結果をファイルに保存
+        if original_file_path:
+            export_g_quality_data(g_quality_data, original_file_path)
+
+        # キャッシュに保存
+        if self.config.get("use_cache", True) and original_file_path:
+            from core.cache_manager import generate_cache_id, save_to_cache
+
+            cache_id = generate_cache_id(original_file_path, self.config)
+            save_to_cache(self.processed_data[dataset_name], original_file_path, cache_id, self.config)
+
+        logger.info(f"G-quality評価が完了しました: {dataset_name}")
+
+    def hide_progress_bars(self):
+        """
+        すべてのプログレスバーとステータスラベルを非表示にする
+        """
+        self.progress_bar.setVisible(False)
+        self.progress_label.setVisible(False)
+        self.file_progress_bar.setVisible(False)
+        self.file_progress_label.setVisible(False)
+        self.processing_status_label.setVisible(False)
 
     # ------------------------------------------------
     # UI更新関連メソッド
@@ -596,8 +823,8 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v8.2を追加
-        ax.text(0.98, 0.02, "AAT-v8.2", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v8.3を追加
+        ax.text(0.98, 0.02, "AAT-v8.3", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         self.canvas.draw()
 
@@ -703,8 +930,8 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v8.2を追加
-        ax.text(0.98, 0.02, "AAT-v8.2", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v8.3を追加
+        ax.text(0.98, 0.02, "AAT-v8.3", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         self.canvas.draw()
 
@@ -749,8 +976,8 @@ class MainWindow(QMainWindow):
 
         self.figure.tight_layout()
 
-        # グラフの右下にAAT-v8.2を追加
-        ax.text(0.98, 0.02, "AAT-v8.2", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v8.3を追加
+        ax.text(0.98, 0.02, "AAT-v8.3", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         # グラフ保存パスを設定 (ファイル名_gq.png形式)
         csv_dir = os.path.dirname(original_file_path)
@@ -790,8 +1017,8 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v8.2を追加
-        ax.text(0.98, 0.02, "AAT-v8.2", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v8.3を追加
+        ax.text(0.98, 0.02, "AAT-v8.3", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         self.canvas.draw()
 
@@ -858,33 +1085,87 @@ class MainWindow(QMainWindow):
         G-quality評価モードと通常モードを切り替える
         """
         self.is_g_quality_mode = self.g_quality_mode_button.isChecked()
+
         if self.is_g_quality_mode:
-            self.g_quality_mode_button.setText("G-quality評価モード実行中")
-            self.g_quality_mode_button.setEnabled(False)
-            self.perform_g_quality_analysis_for_all_datasets()
+            # G-quality評価モードに切り替え
+            if all("g_quality_data" in data for data in self.processed_data.values()):
+                # すべてのデータセットですでにG-quality評価が完了している場合
+                self.g_quality_mode_button.setText("通常モードに戻る")
+                self.update_table()
+                self.update_selected_dataset()
+                logger.info("すべてのデータセットのG-quality評価データを表示します")
+            else:
+                # まだG-quality評価が行われていないデータセットがある場合
+                self.g_quality_mode_button.setText("G-quality評価モード実行中")
+                self.g_quality_mode_button.setEnabled(False)
+                missing_data_sets = [name for name, data in self.processed_data.items() if "g_quality_data" not in data]
+                logger.info(f"G-quality評価が必要なデータセット: {missing_data_sets}")
+
+                # 確認ダイアログの表示
+                if missing_data_sets:
+                    reply = QMessageBox.question(
+                        self,
+                        "G-quality評価",
+                        f"一部のデータセット({', '.join(missing_data_sets)})にG-quality評価データがありません。\n計算を実行しますか？",
+                        QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                    )
+
+                    if reply == QMessageBox.StandardButton.Yes:
+                        # 必要なデータセットのG-quality評価を実行
+                        total_missing = len(missing_data_sets)
+
+                        # 進捗表示の初期化
+                        self.progress_label.setText("G-quality評価の進捗:")
+                        self.progress_label.setVisible(True)
+                        self.progress_bar.setVisible(True)
+                        self.progress_bar.setValue(0)
+                        self.progress_bar.setMaximum(total_missing)
+
+                        # ファイル進捗表示の初期化
+                        self.file_progress_label.setText("現在のファイル処理進捗:")
+                        self.file_progress_label.setVisible(True)
+                        self.file_progress_bar.setVisible(True)
+                        self.file_progress_bar.setValue(0)
+
+                        # 処理状況表示の初期化
+                        self.processing_status_label.setVisible(True)
+                        self.processing_status_label.setText("G-quality評価を開始します...")
+
+                        QApplication.processEvents()
+
+                        # G-quality評価を順次実行
+                        for idx, dataset_name in enumerate(missing_data_sets):
+                            self.progress_bar.setValue(idx)
+                            self.calculate_g_quality_for_dataset(dataset_name, idx, total_missing)
+
+                        self.progress_bar.setValue(total_missing)
+                        self.processing_status_label.setText("G-quality評価が完了しました")
+
+                        # 3秒後にプログレスバーを非表示にする
+                        QTimer.singleShot(3000, self.hide_progress_bars)
+
+                        # 処理完了後の表示更新
+                        self.g_quality_mode_button.setText("通常モードに戻る")
+                        self.g_quality_mode_button.setEnabled(True)
+                        self.update_table()
+                        self.update_selected_dataset()
+                    else:
+                        # 評価せずにモードを切り替え
+                        self.g_quality_mode_button.setText("通常モードに戻る")
+                        self.g_quality_mode_button.setEnabled(True)
+                        self.update_table()
+                        self.update_selected_dataset()
+                        logger.info("G-quality評価をスキップし、既存のデータのみで表示します")
         else:
+            # 通常モードに戻る
             self.g_quality_mode_button.setText("G-quality評価モード")
-            self.g_quality_mode_button.setEnabled(True)
-            self.return_to_normal_mode()
+            self.update_table()
+            self.update_selected_dataset()
+            logger.info("通常モードに戻ります")
 
         self.update_button_visibility()
         if self.is_comparing:
             self.plot_comparison()
-
-    def return_to_normal_mode(self):
-        """
-        通常モードに戻る
-        """
-        # スレッドを停止
-        for worker in self.workers:
-            worker.stop()
-            worker.wait()
-        self.workers.clear()
-
-        self.g_quality_data = None  # G-qualityデータをクリア
-        self.update_selected_dataset()  # 通常モードのグラフを表示
-        self.update_table()
-        self.update_button_visibility()
 
     # ------------------------------------------------
     # G-quality解析関連メソッド
@@ -1034,21 +1315,17 @@ class MainWindow(QMainWindow):
 
     def closeEvent(self, event):
         """
-        ウィンドウが閉じられる前に呼ばれるイベントハンドラ
+        アプリケーション終了時の処理
 
-        実行中のすべてのワーカースレッドを適切に停止させる
-
-        Args:
-            event (QCloseEvent): クローズイベント
+        実行中のワーカーをすべて停止してから終了します。
         """
-        logger.info("アプリケーションを終了します")
+        # 実行中のワーカーがあれば停止
+        if hasattr(self, "workers") and self.workers:
+            logger.info(f"アプリケーション終了: {len(self.workers)}個の実行中ワーカーを停止します")
+            for worker in self.workers:
+                if worker.isRunning():
+                    worker.stop()
+                    worker.wait(1000)  # 最大1秒待機
 
-        # 実行中のスレッドをすべて停止
-        for worker in self.workers[:]:  # リストのコピーを使用
-            if worker.isRunning():
-                logger.debug("実行中のワーカースレッドを停止します")
-                worker.stop()
-                worker.wait()
-
-        self.workers.clear()
-        event.accept()
+        # 親クラスのcloseEventを呼び出し
+        super().closeEvent(event)
