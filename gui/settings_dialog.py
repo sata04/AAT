@@ -7,7 +7,17 @@
 ユーザーが重力レベル解析に関連する様々なパラメータを調整できるようにします。
 """
 
-from PyQt6.QtWidgets import QDialog, QDialogButtonBox, QDoubleSpinBox, QFormLayout, QLineEdit, QSpinBox, QVBoxLayout
+from PyQt6.QtWidgets import (
+    QCheckBox,
+    QDialog,
+    QDialogButtonBox,
+    QDoubleSpinBox,
+    QFormLayout,
+    QGroupBox,
+    QLineEdit,
+    QSpinBox,
+    QVBoxLayout,
+)
 
 from core.logger import get_logger
 
@@ -47,24 +57,26 @@ class SettingsDialog(QDialog):
         ダイアログのレイアウトとウィジェットを初期化する
         """
         layout = QVBoxLayout(self)
-        form_layout = QFormLayout()
 
-        # 各設定項目のウィジェットを作成
+        # データ入力設定グループ
+        input_group = QGroupBox("データ入力設定")
+        form_layout1 = QFormLayout(input_group)
+
         # データ列設定
         self.time_column = QLineEdit(self.config["time_column"])
-        form_layout.addRow("時間列:", self.time_column)
+        form_layout1.addRow("時間列:", self.time_column)
 
         self.acceleration_column_inner_capsule = QLineEdit(self.config["acceleration_column_inner_capsule"])
-        form_layout.addRow("加速度列 (Inner Capsule):", self.acceleration_column_inner_capsule)
+        form_layout1.addRow("加速度列 (Inner Capsule):", self.acceleration_column_inner_capsule)
 
         self.acceleration_column_drag_shield = QLineEdit(self.config["acceleration_column_drag_shield"])
-        form_layout.addRow("加速度列 (Drag Shield):", self.acceleration_column_drag_shield)
+        form_layout1.addRow("加速度列 (Drag Shield):", self.acceleration_column_drag_shield)
 
         # サンプリングレート設定
         self.sampling_rate = QSpinBox()
         self.sampling_rate.setRange(1, 10000)
         self.sampling_rate.setValue(self.config["sampling_rate"])
-        form_layout.addRow("サンプリングレート (Hz):", self.sampling_rate)
+        form_layout1.addRow("サンプリングレート (Hz):", self.sampling_rate)
 
         # 重力定数
         self.gravity_constant = QDoubleSpinBox()
@@ -72,7 +84,25 @@ class SettingsDialog(QDialog):
         self.gravity_constant.setDecimals(6)
         self.gravity_constant.setSingleStep(0.000001)
         self.gravity_constant.setValue(self.config["gravity_constant"])
-        form_layout.addRow("重力定数 (m/s²):", self.gravity_constant)
+        form_layout1.addRow("重力定数 (m/s²):", self.gravity_constant)
+
+        # パフォーマンス設定グループ
+        perf_group = QGroupBox("パフォーマンス設定")
+        perf_layout = QFormLayout(perf_group)
+
+        # キャッシュ使用設定
+        self.use_cache = QCheckBox()
+        self.use_cache.setChecked(self.config.get("use_cache", True))
+        perf_layout.addRow("処理済みデータをキャッシュする:", self.use_cache)
+
+        # 自動G-quality評価
+        self.auto_calculate_g_quality = QCheckBox()
+        self.auto_calculate_g_quality.setChecked(self.config.get("auto_calculate_g_quality", True))
+        perf_layout.addRow("ファイル読み込み時にG-quality評価を自動計算:", self.auto_calculate_g_quality)
+
+        # グラフ表示設定グループ
+        display_group = QGroupBox("グラフ表示設定")
+        form_layout2 = QFormLayout(display_group)
 
         # グラフY軸範囲
         self.ylim_min = QDoubleSpinBox()
@@ -80,14 +110,18 @@ class SettingsDialog(QDialog):
         self.ylim_min.setDecimals(2)
         self.ylim_min.setSingleStep(0.1)
         self.ylim_min.setValue(self.config["ylim_min"])
-        form_layout.addRow("グラフY軸最小値:", self.ylim_min)
+        form_layout2.addRow("グラフY軸最小値:", self.ylim_min)
 
         self.ylim_max = QDoubleSpinBox()
         self.ylim_max.setRange(-10.0, 10.0)
         self.ylim_max.setDecimals(2)
         self.ylim_max.setSingleStep(0.1)
         self.ylim_max.setValue(self.config["ylim_max"])
-        form_layout.addRow("グラフY軸最大値:", self.ylim_max)
+        form_layout2.addRow("グラフY軸最大値:", self.ylim_max)
+
+        # 解析設定グループ
+        analysis_group = QGroupBox("解析設定")
+        form_layout3 = QFormLayout(analysis_group)
 
         # 加速度閾値
         self.acceleration_threshold = QDoubleSpinBox()
@@ -95,7 +129,7 @@ class SettingsDialog(QDialog):
         self.acceleration_threshold.setDecimals(2)
         self.acceleration_threshold.setSingleStep(0.1)
         self.acceleration_threshold.setValue(self.config["acceleration_threshold"])
-        form_layout.addRow("加速度同期閾値 (m/s²):", self.acceleration_threshold)
+        form_layout3.addRow("加速度同期閾値 (m/s²):", self.acceleration_threshold)
 
         # 終了重力レベル
         self.end_gravity_level = QDoubleSpinBox()
@@ -103,7 +137,7 @@ class SettingsDialog(QDialog):
         self.end_gravity_level.setDecimals(2)
         self.end_gravity_level.setSingleStep(0.1)
         self.end_gravity_level.setValue(self.config["end_gravity_level"])
-        form_layout.addRow("終了重力レベル (G):", self.end_gravity_level)
+        form_layout3.addRow("終了重力レベル (G):", self.end_gravity_level)
 
         # ウィンドウサイズ
         self.window_size = QDoubleSpinBox()
@@ -111,10 +145,7 @@ class SettingsDialog(QDialog):
         self.window_size.setDecimals(2)
         self.window_size.setSingleStep(0.01)
         self.window_size.setValue(self.config["window_size"])
-        form_layout.addRow("解析ウィンドウサイズ (秒):", self.window_size)
-
-        # G-quality解析パラメータ
-        self._init_g_quality_widgets(form_layout)
+        form_layout3.addRow("解析ウィンドウサイズ (秒):", self.window_size)
 
         # 開始点からの最小秒数
         self.min_seconds_after_start = QDoubleSpinBox()
@@ -122,9 +153,21 @@ class SettingsDialog(QDialog):
         self.min_seconds_after_start.setDecimals(2)
         self.min_seconds_after_start.setSingleStep(0.1)
         self.min_seconds_after_start.setValue(self.config.get("min_seconds_after_start", 0.0))
-        form_layout.addRow("終了点の開始点からの最小秒数 (秒):", self.min_seconds_after_start)
+        form_layout3.addRow("終了点の開始点からの最小秒数 (秒):", self.min_seconds_after_start)
 
-        layout.addLayout(form_layout)
+        # G-quality解析設定グループ
+        g_quality_group = QGroupBox("G-quality解析設定")
+        form_layout4 = QFormLayout(g_quality_group)
+
+        # G-quality解析パラメータ
+        self._init_g_quality_widgets(form_layout4)
+
+        # 各グループをメインレイアウトに追加
+        layout.addWidget(input_group)
+        layout.addWidget(perf_group)
+        layout.addWidget(display_group)
+        layout.addWidget(analysis_group)
+        layout.addWidget(g_quality_group)
 
         # ダイアログボタン
         self._init_buttons(layout)
@@ -195,6 +238,8 @@ class SettingsDialog(QDialog):
             "g_quality_end": self.g_quality_end.value(),
             "g_quality_step": self.g_quality_step.value(),
             "min_seconds_after_start": self.min_seconds_after_start.value(),
+            "use_cache": self.use_cache.isChecked(),
+            "auto_calculate_g_quality": self.auto_calculate_g_quality.isChecked(),
         }
 
         logger.debug(f"設定変更: {settings}")
