@@ -546,10 +546,13 @@ class MainWindow(QMainWindow):
 
             # UI更新
             self.update_table()
-            self.update_dataset_selector()
+            self.update_dataset_selector()  # このメソッドが更新され、明示的にupdate_selected_datasetを呼び出すようになります
             self.status_label.setText("処理が完了しました")
             self.processing_status_label.setText("すべてのファイルの処理が完了しました")
             logger.info("すべてのファイルの処理が完了しました")
+
+            # 必要に応じてキャンバスを強制的に更新
+            self.canvas.draw_idle()
 
             # 3秒後にプログレスバーを非表示にする
             QTimer.singleShot(3000, self.hide_progress_bars)
@@ -648,39 +651,69 @@ class MainWindow(QMainWindow):
         """
         データセットセレクターのコンボボックスを更新する
         """
+        # シグナルを一時的にブロック
+        self.dataset_selector.blockSignals(True)
+
         self.dataset_selector.clear()
+
         if self.is_comparing:
             self.dataset_selector.addItem("複数グラフ比較")
         else:
             dataset_names = list(self.processed_data.keys())
-            self.dataset_selector.addItems(dataset_names)
+            if dataset_names:
+                self.dataset_selector.addItems(dataset_names)
+            else:
+                # データセットがない場合はプレースホルダーを表示
+                self.dataset_selector.addItem("データがありません")
+
+        # シグナルのブロックを解除
+        self.dataset_selector.blockSignals(False)
+
+        # データセットが存在する場合に最初のアイテムを選択
+        if self.dataset_selector.count() > 0:
+            self.dataset_selector.setCurrentIndex(0)
+            # 明示的にデータセットの更新メソッドを呼び出す
+            self.update_selected_dataset()
 
     def update_selected_dataset(self):
         """
         選択されたデータセットに応じてグラフを更新する
         """
-        if self.is_comparing:
-            self.plot_comparison()
-        else:
-            selected_dataset = self.dataset_selector.currentText()
-            if selected_dataset in self.processed_data:
-                data = self.processed_data[selected_dataset]
-                if self.is_g_quality_mode and "g_quality_data" in data:
-                    self.plot_g_quality_data(data["g_quality_data"], selected_dataset)
-                elif self.is_showing_all_data:
-                    self.show_all_data(data)
-                else:
-                    self.plot_gravity_level(
-                        data["filtered_time"],
-                        data["filtered_adjusted_time"],
-                        data["filtered_gravity_level_inner_capsule"],
-                        data["filtered_gravity_level_drag_shield"],
-                        self.config,
-                        selected_dataset,
-                        "",
-                    )
+        try:
+            if self.is_comparing:
+                self.plot_comparison()
             else:
-                logger.warning(f"選択されたデータセットが見つかりません: {selected_dataset}")
+                selected_dataset = self.dataset_selector.currentText()
+
+                # 「データがありません」のプレースホルダーの場合は何もしない
+                if selected_dataset == "データがありません":
+                    return
+
+                if selected_dataset in self.processed_data:
+                    data = self.processed_data[selected_dataset]
+                    if self.is_g_quality_mode and "g_quality_data" in data:
+                        self.plot_g_quality_data(data["g_quality_data"], selected_dataset)
+                    elif self.is_showing_all_data:
+                        self.show_all_data(data)
+                    else:
+                        self.plot_gravity_level(
+                            data["filtered_time"],
+                            data["filtered_adjusted_time"],
+                            data["filtered_gravity_level_inner_capsule"],
+                            data["filtered_gravity_level_drag_shield"],
+                            self.config,
+                            selected_dataset,
+                            "",
+                        )
+                else:
+                    logger.debug(f"選択されたデータセットが見つかりません: {selected_dataset}")
+                    # ユーザーにはエラーを表示しない
+
+            # グラフの描画を強制的に更新
+            self.canvas.draw_idle()
+        except Exception as e:
+            log_exception(e, "グラフ更新中にエラーが発生")
+            logger.error(f"グラフ更新エラー: {str(e)}")
 
     def update_button_visibility(self):
         """
