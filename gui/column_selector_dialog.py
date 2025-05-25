@@ -41,13 +41,14 @@ class ColumnSelectorDialog(QDialog):
         self.setWindowTitle("データ列の選択")
         self.setMinimumWidth(500)  # 幅を広げて長い列名を表示しやすくする
 
-        self.layout = QVBoxLayout(self)
+        self.main_layout = QVBoxLayout()
+        self.setLayout(self.main_layout)
 
         # 説明ラベル
         info_label = QLabel(
             "CSVファイル内に複数の時間列または加速度列候補があります。\n使用する列を選択してください。\n選択した列名はAcceleration dataの保存にも使用されます。"
         )
-        self.layout.addWidget(info_label)
+        self.main_layout.addWidget(info_label)
 
         # 時間列の選択
         time_layout = QHBoxLayout()
@@ -58,7 +59,7 @@ class ColumnSelectorDialog(QDialog):
         self.time_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         time_layout.addWidget(time_label)
         time_layout.addWidget(self.time_combo)
-        self.layout.addLayout(time_layout)
+        self.main_layout.addLayout(time_layout)
 
         # Inner Capsule 加速度列の選択
         inner_layout = QHBoxLayout()
@@ -68,7 +69,7 @@ class ColumnSelectorDialog(QDialog):
         self.inner_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         inner_layout.addWidget(inner_label)
         inner_layout.addWidget(self.inner_combo)
-        self.layout.addLayout(inner_layout)
+        self.main_layout.addLayout(inner_layout)
 
         # Drag Shield 加速度列の選択
         drag_layout = QHBoxLayout()
@@ -81,7 +82,7 @@ class ColumnSelectorDialog(QDialog):
             self.drag_combo.setCurrentIndex(1)
         drag_layout.addWidget(drag_label)
         drag_layout.addWidget(self.drag_combo)
-        self.layout.addLayout(drag_layout)
+        self.main_layout.addLayout(drag_layout)
 
         # ボタン
         button_layout = QHBoxLayout()
@@ -91,7 +92,7 @@ class ColumnSelectorDialog(QDialog):
         self.cancel_button.clicked.connect(self.reject)
         button_layout.addWidget(self.ok_button)
         button_layout.addWidget(self.cancel_button)
-        self.layout.addLayout(button_layout)
+        self.main_layout.addLayout(button_layout)
 
     def validate_and_accept(self):
         """
