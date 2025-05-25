@@ -15,5 +15,5 @@
     "min_seconds_after_start": 0.9,
     "auto_calculate_g_quality": true,
     "use_cache": true,
-    "app_version": "9.0.0"
+    "app_version": "9.1.0"
 }

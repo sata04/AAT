@@ -18,7 +18,7 @@ from core.logger import get_logger, log_exception
 logger = get_logger("config")
 
 # アプリケーションのバージョン情報
-APP_VERSION = "9.0.0"
+APP_VERSION = "9.1.0"
 
 
 def load_config():

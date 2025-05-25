@@ -122,30 +122,36 @@ def load_and_process_data(file_path, config):
         acceleration_threshold = config.get("acceleration_threshold", 1.0)
         logger.debug(f"加速度閾値: {acceleration_threshold}")
 
-        # Drag Shieldの同期点を見つける
-        sync_indices = np.where(np.abs(acceleration_drag_shield) < acceleration_threshold)[0]
-        logger.debug(f"同期点の候補数: {len(sync_indices)}")
+        # Drag ShieldとInner Capsuleの同期点を見つける
+        sync_indices_drag = np.where(np.abs(acceleration_drag_shield) < acceleration_threshold)[0]
+        sync_indices_inner = np.where(np.abs(acceleration_inner_capsule) < acceleration_threshold)[0]
+        logger.debug(f"Drag Shield同期点候補数: {len(sync_indices_drag)}, Inner Capsule同期点候補数: {len(sync_indices_inner)}")
 
-        if len(sync_indices) > 0:
-            sync_index = sync_indices[0]
-            logger.info(f"同期点を検出: index={sync_index}, time={time.iloc[sync_index] if not time.empty else 'N/A'}")
-
-            # inner_capsuleの時間はそのまま、drag_shieldの時間のみを調整
-            adjusted_time = pd.Series(time - time.iloc[sync_index])
-
-            gravity_level_inner_capsule = acceleration_inner_capsule / config["gravity_constant"]
-            gravity_level_drag_shield = acceleration_drag_shield / config["gravity_constant"]
-
-            # 処理結果のサンプル値をログに記録
-            logger.debug(
-                f"重力レベル計算 (先頭5件): inner_capsule={gravity_level_inner_capsule.head(5).tolist()}, "
-                f"drag_shield={gravity_level_drag_shield.head(5).tolist()}"
-            )
-
-            return time, gravity_level_inner_capsule, gravity_level_drag_shield, adjusted_time
+        if len(sync_indices_drag) > 0:
+            sync_index_drag = sync_indices_drag[0]
+            # Inner側の同期点はInner Capsuleに存在すればそれを、なければDrag Shieldと同じ位置を使用
+            sync_index_inner = sync_indices_inner[0] if len(sync_indices_inner) > 0 else sync_index_drag
         else:
-            logger.error("同期点が見つかりませんでした")
+            logger.error("Drag Shieldの同期点が見つかりませんでした")
             raise ValueError("Drag Shieldの同期点が見つかりませんでした")
+
+        logger.info(f"同期点を検出: inner_index={sync_index_inner}, drag_index={sync_index_drag}")
+
+        # 各系列の時間を同期点基準で調整
+        adjusted_time_inner = pd.Series(time - time.iloc[sync_index_inner])
+        adjusted_time_drag = pd.Series(time - time.iloc[sync_index_drag])
+
+        gravity_level_inner_capsule = acceleration_inner_capsule / config["gravity_constant"]
+        gravity_level_drag_shield = acceleration_drag_shield / config["gravity_constant"]
+
+        # 処理結果のサンプル値をログに記録
+        logger.debug(
+            f"重力レベル計算 (先頭5件): inner_capsule={gravity_level_inner_capsule.head(5).tolist()}, "
+            f"drag_shield={gravity_level_drag_shield.head(5).tolist()}"
+        )
+
+        # 調整済み時間を返却（inner, drag）
+        return adjusted_time_inner, gravity_level_inner_capsule, gravity_level_drag_shield, adjusted_time_drag
     except ValueError as e:
         if len(e.args) > 1 and e.args[0] == "必要な列が見つかりません。列の選択が必要です。":
             # 列選択ダイアログを表示するために例外を再送出

@@ -15,8 +15,8 @@ import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
 from matplotlib import font_manager
-from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-from matplotlib.backends.backend_qt5agg import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavigationToolbar
+from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.widgets import SpanSelector
 from PyQt6.QtCore import QMutex, Qt, QTimer
 from PyQt6.QtWidgets import (
@@ -38,7 +38,7 @@ from PyQt6.QtWidgets import (
 
 from core.config import load_config, save_config
 from core.data_processor import filter_data, load_and_process_data
-from core.export import export_data, export_g_quality_data
+from core.export import create_output_directories, export_data, export_g_quality_data
 from core.logger import get_logger, log_exception
 from core.statistics import calculate_statistics
 from gui.column_selector_dialog import ColumnSelectorDialog
@@ -730,6 +730,8 @@ class MainWindow(QMainWindow):
                     elif self.is_showing_all_data:
                         self.show_all_data(data)
                     else:
+                        # 正しいファイルパスを取得
+                        original_file_path = self.file_paths.get(selected_dataset, "")
                         self.plot_gravity_level(
                             data["filtered_time"],
                             data["filtered_adjusted_time"],
@@ -737,7 +739,7 @@ class MainWindow(QMainWindow):
                             data["filtered_gravity_level_drag_shield"],
                             self.config,
                             selected_dataset,
-                            "",
+                            original_file_path,
                         )
                 else:
                     logger.debug(f"選択されたデータセットが見つかりません: {selected_dataset}")
@@ -890,8 +892,8 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v9.0.0を追加
-        ax.text(0.98, 0.02, "AAT-v9.0.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v9.1.0を追加
+        ax.text(0.98, 0.02, "AAT-v9.1.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         # 範囲選択機能を追加
         # 既存のSpanSelectorをクリア
@@ -911,25 +913,20 @@ class MainWindow(QMainWindow):
 
         self.canvas.draw()
 
-        # グラフの保存
-        if original_file_path:
-            # CSVファイルのディレクトリを取得
-            csv_dir = os.path.dirname(original_file_path)
-
-            # 結果ディレクトリとグラフディレクトリのパスを生成
-            results_dir = os.path.join(csv_dir, "results_AAT")
-            graphs_dir = os.path.join(results_dir, "graphs")
-
-            # ディレクトリが存在しない場合は作成
-            os.makedirs(graphs_dir, exist_ok=True)
-
-            # グラフ保存パスを設定 (ファイル名_gl.png形式)
-            graph_path = os.path.join(graphs_dir, f"{file_name_without_ext}_gl.png")
-            self.figure.savefig(graph_path, dpi=300, bbox_inches="tight")
-            logger.info(f"グラフを保存しました: {graph_path}")
-            return graph_path
-
-        return None
+        # グラフの保存: CSVファイルのディレクトリを基準に保存先を作成
+        if not original_file_path:
+            logger.warning("original_file_pathが空です。グラフを保存できません。")
+            return None
+        csv_dir = os.path.dirname(original_file_path)
+        logger.debug(f"CSV directory: {csv_dir}")
+        logger.debug(f"Original file path: {original_file_path}")
+        results_dir, graphs_dir = create_output_directories(csv_dir)
+        logger.debug(f"Results directory: {results_dir}")
+        logger.debug(f"Graphs directory: {graphs_dir}")
+        graph_path = os.path.join(graphs_dir, f"{file_name_without_ext}_gl.png")
+        self.figure.savefig(graph_path, dpi=300, bbox_inches="tight")
+        logger.info(f"グラフを保存しました: {graph_path}")
+        return graph_path
 
     def plot_comparison(self):
         """
@@ -940,7 +937,7 @@ class MainWindow(QMainWindow):
         ax = self.figure.add_subplot(111)
 
         # カラーマップを使用して、各データセットに異なる色を割り当てる
-        colors = plt.cm.rainbow(np.linspace(0, 1, len(self.processed_data) * 2))
+        colors = plt.get_cmap("rainbow")(np.linspace(0, 1, len(self.processed_data) * 2))
         color_index = 0
 
         for file_name, data in self.processed_data.items():
@@ -1013,8 +1010,8 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v9.0.0を追加
-        ax.text(0.98, 0.02, "AAT-v9.0.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v9.1.0を追加
+        ax.text(0.98, 0.02, "AAT-v9.1.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         # 比較モードではSpanSelectorを追加しない（選択範囲の統計計算を無効化）
         self.span_selectors.clear()
@@ -1063,21 +1060,29 @@ class MainWindow(QMainWindow):
 
         self.figure.tight_layout()
 
-        # グラフの右下にAAT-v9.0.0を追加
-        ax.text(0.98, 0.02, "AAT-v9.0.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v9.1.0を追加
+        ax.text(0.98, 0.02, "AAT-v9.1.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         # SpanSelectorをクリア（G-qualityモードでは選択範囲機能を無効化）
         self.span_selectors.clear()
 
         # グラフ保存パスを設定 (ファイル名_gq.png形式)
+        # 型チェック: original_file_pathが文字列でなければ終了
+        if not isinstance(original_file_path, str) or not original_file_path:
+            logger.warning("G-quality: original_file_pathが無効です。グラフを保存できません。")
+            return None
+        # 出力ディレクトリ構造を作成（export.pyと同じロジック）
+        from core.export import create_output_directories
+
         csv_dir = os.path.dirname(original_file_path)
-        results_dir = os.path.join(csv_dir, "results_AAT")
-        graphs_dir = os.path.join(results_dir, "graphs")
-        os.makedirs(graphs_dir, exist_ok=True)
+        logger.debug(f"G-quality: CSV directory: {csv_dir}")
+        logger.debug(f"G-quality: Original file path: {original_file_path}")
+        results_dir, graphs_dir = create_output_directories(csv_dir)
+        logger.debug(f"G-quality: Results directory: {results_dir}")
+        logger.debug(f"G-quality: Graphs directory: {graphs_dir}")
         graph_path = os.path.join(graphs_dir, f"{file_name}_gq.png")
         self.figure.savefig(graph_path, dpi=300, bbox_inches="tight")
         logger.info(f"G-qualityグラフを保存しました: {graph_path}")
-
         self.canvas.draw()
         return graph_path
 
@@ -1107,8 +1112,8 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v9.0.0を追加
-        ax.text(0.98, 0.02, "AAT-v9.0.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
+        # グラフの右下にAAT-v9.1.0を追加
+        ax.text(0.98, 0.02, "AAT-v9.1.0", transform=ax.transAxes, fontsize=8, verticalalignment="bottom", horizontalalignment="right")
 
         # 全体表示モードではSpanSelectorを追加しない（選択範囲の統計計算を無効化）
         self.span_selectors.clear()

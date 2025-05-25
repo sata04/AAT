@@ -130,3 +130,4 @@ dmypy.json
 .vscode/
 *.code-workspace
 .history/
+.idea/workspace.xml

@@ -21,23 +21,43 @@ from core.logger import get_logger, log_exception
 logger = get_logger("export")
 
 
-def create_output_directories(csv_dir):
+def create_output_directories(csv_dir=None):
     """
     出力用ディレクトリ構造を作成する
 
+    CSVファイルがあるディレクトリに `results_AAT/graphs` ディレクトリを作成します。
+    csv_dir が指定されていない場合は、プロジェクトルートにフォールバックします。
+
     Args:
-        csv_dir (str): 元のCSVファイルのディレクトリパス
+        csv_dir (str, optional): CSVファイルのディレクトリパス。指定されていればそのディレクトリに作成
 
     Returns:
         tuple: 作成した結果ディレクトリとグラフディレクトリのパス
     """
-    # 結果ディレクトリとグラフディレクトリのパスを生成
-    results_dir = os.path.join(csv_dir, "results_AAT")
+    # プロジェクトルートを取得（フォールバック用）
+    script_dir = os.path.dirname(os.path.abspath(__file__))
+    project_root = os.path.abspath(os.path.join(script_dir, os.pardir))
+    # 基準ディレクトリ: csv_dir が指定されていればCSVファイルのディレクトリを使用し、未指定時はプロジェクトルートをフォールバック
+    base_dir = csv_dir if csv_dir else project_root
+
+    # デバッグ情報を追加
+    logger.debug(f"create_output_directories called with csv_dir: {csv_dir}")
+
+    # csv_dirが空文字列や無効な場合の警告
+    if csv_dir is None:
+        logger.warning("csv_dir is None, falling back to project root")
+    elif csv_dir == "":
+        logger.warning("csv_dir is empty string, falling back to project root")
+
+    logger.debug(f"Using base_dir: {base_dir}")
+
+    results_dir = os.path.join(base_dir, "results_AAT")
     graphs_dir = os.path.join(results_dir, "graphs")
 
-    # ディレクトリが存在しない場合は作成
     os.makedirs(results_dir, exist_ok=True)
     os.makedirs(graphs_dir, exist_ok=True)
+
+    logger.debug(f"Created directories: results={results_dir}, graphs={graphs_dir}")
 
     return results_dir, graphs_dir
 
@@ -268,13 +288,11 @@ def export_data(
         with pd.ExcelWriter(output_file_path, engine="openpyxl") as writer:
             export_data.to_excel(writer, sheet_name="Gravity Level Data", index=False)
             stats_df.to_excel(writer, sheet_name="Gravity Level Statistics", index=False)
-
-            # 加速度データがある場合は別シートに追加
-        if acceleration_data is not None:
-            acceleration_data.to_excel(writer, sheet_name="Acceleration Data", index=False)
-            logger.info(f"加速度データをシートに追加しました: {len(acceleration_data)}行")
-        else:
-            logger.warning("加速度データが作成されなかったため、シートに追加されません")
+            if acceleration_data is not None:
+                acceleration_data.to_excel(writer, sheet_name="Acceleration Data", index=False)
+                logger.info(f"加速度データをシートに追加しました: {len(acceleration_data)}行")
+            else:
+                logger.warning("加速度データが作成されなかったため、シートに追加されません")
 
         # 保存完了メッセージ - フォルダ名だけを表示するように変更
         graphs_folder = os.path.basename(os.path.dirname(new_graph_path))
@@ -358,7 +376,9 @@ def export_g_quality_data(g_quality_data, original_file_path, g_quality_graph_pa
         except FileNotFoundError:
             workbook = Workbook()
             # デフォルトのシートを削除（後で必要なシートを追加する）
-            workbook.remove(workbook.active)
+            sheet_to_remove = workbook.active
+            if sheet_to_remove is not None:
+                workbook.remove(sheet_to_remove)
 
         # G-quality Analysis シートを作成または更新
         sheet_name = "G-quality Analysis"
