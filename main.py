@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Acceleration Analysis Tool (AAT)
 微小重力環境下での実験データを分析するためのメインアプリケーション
@@ -16,12 +15,15 @@ import warnings
 if sys.platform == "darwin":
     os.environ["OBJC_DISABLE_INITIALIZE_FORK_SAFETY"] = "YES"
     # ウィンドウ移動に関する警告を無視
-    warnings.filterwarnings("ignore", message=".*Window move completed without beginning.*")
+    warnings.filterwarnings(
+        "ignore", message=".*Window move completed without beginning.*"
+    )
     # TSM関連のエラーメッセージを標準エラー出力から除外
     os.environ["QT_MAC_WANTS_LAYER"] = "1"
     # 標準エラー出力をリダイレクト（オプション）
     if not os.environ.get("AAT_DEBUG"):
-        sys.stderr = open(os.devnull, 'w')
+        with open(os.devnull, "w") as devnull:
+            sys.stderr = devnull
 
 from PyQt6.QtWidgets import QApplication, QMessageBox
 

@@ -126,8 +126,39 @@ dmypy.json
 # macOS
 .DS_Store
 
-# VS Code
-.vscode/
+# VS Code - Keep project settings but ignore user-specific files
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/*.code-snippets
 *.code-workspace
 .history/
 .idea/workspace.xml
+
+# Allow .vscode/settings.json and .vscode/extensions.json for team sharing
+
+# AAT-specific files
+# User configuration files (contain user-specific settings)
+config.json
+*.bak
+
+# Application output directories
+results_AAT/
+**/cache/
+
+# Generated data files in output directories
+*.xlsx
+*.pickle
+*.h5
+
+# VS Code workspace files (user-specific)
+AAT.code-workspace
+
+# Sample/test data directories (if any)
+sample_data/
+test_data/
+**/sample_data/
+**/test_data/
+
+# Application logs
+AAT.log
+AAT_*.log
