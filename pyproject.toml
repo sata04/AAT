@@ -1,0 +1,69 @@
+[tool.ruff]
+# Set line length to 120 (more relaxed than Black default)
+line-length = 120
+
+# Target Python version
+target-version = "py39"
+
+# Exclude common directories
+exclude = [
+    ".git",
+    ".venv",
+    "venv",
+    "__pycache__",
+    ".pytest_cache",
+    "build",
+    "dist",
+    "results_AAT/cache",
+]
+
+[tool.ruff.lint]
+# Enable key rule sets
+select = [
+    "E",   # pycodestyle errors
+    "F",   # Pyflakes
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+    "SIM", # flake8-simplify
+    "I",   # isort
+    "C4",  # flake8-comprehensions
+    "PIE", # flake8-pie
+    "PYI", # flake8-pyi
+]
+
+# Ignore specific rules that might be too strict for this project
+ignore = [
+    "E501",  # Line too long (handled by formatter)
+    "B008",  # Do not perform function calls in argument defaults
+    "SIM102", # Use a single if-statement instead of nested if-statements
+]
+
+# Allow autofix for all enabled rules (when `--fix`) is provided
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[tool.ruff.lint.per-file-ignores]
+# Allow unused imports in __init__.py files
+"__init__.py" = ["F401"]
+# Allow print statements in main.py
+"main.py" = ["T201"]
+
+[tool.ruff.format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Use spaces for indentation
+indent-style = "space"
+
+# Enable formatting of code examples in docstrings
+docstring-code-format = true
+
+# Set docstring code line length to dynamic
+docstring-code-line-length = "dynamic"
+
+[tool.ruff.lint.isort]
+# Configure import sorting
+known-first-party = ["core", "gui"]

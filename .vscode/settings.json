@@ -1,0 +1,48 @@
+{
+    // Python settings
+    "python.defaultInterpreterPath": "python",
+    
+    // Ruff settings
+    "ruff.enable": true,
+    "ruff.lint.enable": true,
+    "ruff.format.enable": true,
+    "ruff.organizeImports": true,
+    "ruff.fixAll": true,
+    
+    // Editor settings for Python
+    "[python]": {
+        "editor.formatOnSave": true,
+        "editor.formatOnType": false,
+        "editor.formatOnPaste": false,
+        "editor.codeActionsOnSave": {
+            "source.organizeImports": "explicit",
+            "source.fixAll": "explicit"
+        },
+        "editor.defaultFormatter": "charliermarsh.ruff"
+    },
+    
+    // File associations
+    "files.associations": {
+        "*.py": "python",
+        "pyproject.toml": "toml",
+        "requirements*.txt": "pip-requirements"
+    },
+    
+    // Exclude patterns
+    "files.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/results_AAT/cache": true,
+        "**/*.pyc": true,
+        "**/.ruff_cache": true
+    },
+    
+    // Search exclude patterns
+    "search.exclude": {
+        "**/__pycache__": true,
+        "**/.pytest_cache": true,
+        "**/results_AAT/cache": true,
+        "**/*.pyc": true,
+        "**/.ruff_cache": true
+    }
+}

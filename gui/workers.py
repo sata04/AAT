@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 ワーカースレッドモジュール
 
@@ -28,10 +27,20 @@ class GQualityWorker(QThread):
     # シグナル定義
     progress = pyqtSignal(int)  # 進捗更新用シグナル (0-100%)
     status_update = pyqtSignal(str)  # 状態更新用シグナル
-    overall_progress = pyqtSignal(int, int)  # 全体の進捗用シグナル (現在のファイル, 総ファイル数)
+    overall_progress = pyqtSignal(
+        int, int
+    )  # 全体の進捗用シグナル (現在のファイル, 総ファイル数)
     finished = pyqtSignal(list)  # 結果送信用シグナル
 
-    def __init__(self, filtered_time, filtered_gravity_level_inner_capsule, filtered_gravity_level_drag_shield, config, file_index=0, total_files=1):
+    def __init__(
+        self,
+        filtered_time,
+        filtered_gravity_level_inner_capsule,
+        filtered_gravity_level_drag_shield,
+        config,
+        file_index=0,
+        total_files=1,
+    ):
         """
         コンストラクタ
 
@@ -72,7 +81,9 @@ class GQualityWorker(QThread):
             g_quality_data = []
             # 設定から開始サイズ、終了サイズ、ステップサイズを取得してウィンドウサイズの配列を生成
             window_sizes = np.arange(
-                self.config["g_quality_start"], self.config["g_quality_end"] + self.config["g_quality_step"], self.config["g_quality_step"]
+                self.config["g_quality_start"],
+                self.config["g_quality_end"] + self.config["g_quality_step"],
+                self.config["g_quality_step"],
             )
             total_steps = len(window_sizes)
 
@@ -80,7 +91,9 @@ class GQualityWorker(QThread):
             self.overall_progress.emit(self.file_index, self.total_files)
 
             # ファイル単位の処理ステータスを更新
-            self.status_update.emit(f"G-quality解析中... ({self.file_index + 1}/{self.total_files})")
+            self.status_update.emit(
+                f"G-quality解析中... ({self.file_index + 1}/{self.total_files})"
+            )
 
             for i, window_size in enumerate(window_sizes):
                 # 中断フラグのチェック
@@ -89,22 +102,38 @@ class GQualityWorker(QThread):
 
                 # ウィンドウサイズを状態更新で通知
                 if i % 3 == 0:  # 3ステップごとに状態を更新（UI更新の負荷を抑制）
-                    self.status_update.emit(f"G-quality解析中... ウィンドウサイズ: {window_size:.2f}秒 ({self.file_index + 1}/{self.total_files})")
+                    self.status_update.emit(
+                        f"G-quality解析中... ウィンドウサイズ: {window_size:.2f}秒 ({self.file_index + 1}/{self.total_files})"
+                    )
 
                 # Inner CapsuleとDrag Shieldの両方について統計を計算
                 try:
-                    min_mean_inner_capsule, min_time_inner_capsule, min_std_inner_capsule = calculate_statistics(
+                    (
+                        min_mean_inner_capsule,
+                        min_time_inner_capsule,
+                        min_std_inner_capsule,
+                    ) = calculate_statistics(
                         self.filtered_gravity_level_inner_capsule,
                         self.filtered_time,
-                        {"window_size": window_size, "sampling_rate": self.config["sampling_rate"]},
+                        {
+                            "window_size": window_size,
+                            "sampling_rate": self.config["sampling_rate"],
+                        },
                     )
-                    min_mean_drag_shield, min_time_drag_shield, min_std_drag_shield = calculate_statistics(
-                        self.filtered_gravity_level_drag_shield,
-                        self.filtered_time,
-                        {"window_size": window_size, "sampling_rate": self.config["sampling_rate"]},
+                    min_mean_drag_shield, min_time_drag_shield, min_std_drag_shield = (
+                        calculate_statistics(
+                            self.filtered_gravity_level_drag_shield,
+                            self.filtered_time,
+                            {
+                                "window_size": window_size,
+                                "sampling_rate": self.config["sampling_rate"],
+                            },
+                        )
                     )
                 except Exception as e:
-                    log_exception(e, f"ウィンドウサイズ {window_size}秒 での統計計算中にエラー")
+                    log_exception(
+                        e, f"ウィンドウサイズ {window_size}秒 での統計計算中にエラー"
+                    )
                     continue
 
                 # 計算結果が有効な場合のみデータに追加
@@ -136,7 +165,9 @@ class GQualityWorker(QThread):
             self.g_quality_data = g_quality_data
 
             # 状態を更新
-            self.status_update.emit(f"G-quality解析が完了しました ({self.file_index + 1}/{self.total_files})")
+            self.status_update.emit(
+                f"G-quality解析が完了しました ({self.file_index + 1}/{self.total_files})"
+            )
 
             # 解析完了時に結果を送信
             self.finished.emit(g_quality_data)

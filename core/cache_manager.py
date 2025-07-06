@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 キャッシュ管理モジュール
 
@@ -133,7 +132,9 @@ def save_to_cache(processed_data, file_path, cache_id, config):
         if "raw_data" in data_to_save:
             # rawデータはサイズが大きいため、サイズ削減のためにhdfで保存
             raw_data_cache_path = cache_path.replace(".pickle", "_raw.h5")
-            data_to_save["raw_data"].to_hdf(raw_data_cache_path, key="raw_data", mode="w")
+            data_to_save["raw_data"].to_hdf(
+                raw_data_cache_path, key="raw_data", mode="w"
+            )
             data_to_save["raw_data"] = None  # pickleには保存しないよう置き換え
 
         # メタデータを追加
@@ -177,7 +178,9 @@ def load_from_cache(file_path, cache_id):
         # メタデータを確認
         metadata = data.get("_metadata", {})
         if metadata.get("app_version") != APP_VERSION:
-            logger.warning(f"キャッシュのバージョン({metadata.get('app_version')})が現在のバージョン({APP_VERSION})と一致しません")
+            logger.warning(
+                f"キャッシュのバージョン({metadata.get('app_version')})が現在のバージョン({APP_VERSION})と一致しません"
+            )
             return None
 
         logger.info(f"キャッシュからデータを読み込みました: {cache_path}")
@@ -241,7 +244,7 @@ def delete_cache(file_path, cache_id=None):
             # このファイルの全てのキャッシュを削除
             cache_pattern = f"{base_name}_"
             for filename in os.listdir(cache_dir):
-                if filename.startswith(cache_pattern) and (filename.endswith(".pickle") or filename.endswith("_raw.h5")):
+                if filename.startswith(cache_pattern) and filename.endswith((".pickle", "_raw.h5")):
                     file_path = os.path.join(cache_dir, filename)
                     os.remove(file_path)
                     logger.info(f"キャッシュを削除しました: {file_path}")
@@ -279,7 +282,9 @@ def has_valid_cache(file_path, config):
             # メタデータを確認
             metadata = data.get("_metadata", {})
             if metadata.get("app_version") != APP_VERSION:
-                logger.warning(f"キャッシュのバージョン({metadata.get('app_version')})が現在のバージョン({APP_VERSION})と一致しません")
+                logger.warning(
+                    f"キャッシュのバージョン({metadata.get('app_version')})が現在のバージョン({APP_VERSION})と一致しません"
+                )
                 return False, cache_id
 
             # ファイルの最終更新時間を確認

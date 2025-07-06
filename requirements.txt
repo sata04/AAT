@@ -2,5 +2,7 @@ PyQt6
 matplotlib
 numpy
 pandas
+pandas-stubs
 openpyxl
 tables
+ruff

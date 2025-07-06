@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 設定管理モジュール
 
@@ -57,7 +56,7 @@ def load_config():
     logger.debug(f"設定ファイルのパス: {config_path}")
 
     try:
-        with open(config_path, "r") as f:
+        with open(config_path) as f:
             logger.info("設定ファイルを読み込んでいます")
             user_config = json.load(f)
             logger.debug(f"読み込まれた設定: {user_config}")
@@ -73,10 +72,18 @@ def load_config():
         logger.info("設定ファイルの読み込みに成功しました")
     except FileNotFoundError:
         logger.warning(f"設定ファイルが見つかりません: {config_path}")
-        QMessageBox.warning(None, "設定ファイルエラー", f"設定ファイルが見つかりません: {config_path}\nデフォルト設定を使用します。")
+        QMessageBox.warning(
+            None,
+            "設定ファイルエラー",
+            f"設定ファイルが見つかりません: {config_path}\nデフォルト設定を使用します。",
+        )
     except json.JSONDecodeError as e:
         logger.error(f"設定ファイルの解析に失敗しました: {e}")
-        QMessageBox.warning(None, "設定ファイルエラー", f"設定ファイルの解析に失敗しました: {config_path}\nデフォルト設定を使用します。")
+        QMessageBox.warning(
+            None,
+            "設定ファイルエラー",
+            f"設定ファイルの解析に失敗しました: {config_path}\nデフォルト設定を使用します。",
+        )
 
     logger.debug(f"最終的な設定: {default_config}")
     return default_config
@@ -126,5 +133,7 @@ def save_config(config):
             except Exception as e2:
                 log_exception(e2, "バックアップからの復元に失敗しました")
 
-        QMessageBox.warning(None, "設定保存エラー", f"設定の保存中にエラーが発生しました: {e}")
+        QMessageBox.warning(
+            None, "設定保存エラー", f"設定の保存中にエラーが発生しました: {e}"
+        )
         return False

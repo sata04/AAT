@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 統計計算モジュール
 
@@ -78,7 +77,15 @@ def calculate_range_statistics(data_array):
             - count: データポイント数
     """
     if len(data_array) == 0:
-        return {"mean": None, "abs_mean": None, "std": None, "min": None, "max": None, "range": None, "count": 0}
+        return {
+            "mean": None,
+            "abs_mean": None,
+            "std": None,
+            "min": None,
+            "max": None,
+            "range": None,
+            "count": 0,
+        }
 
     return {
         "mean": np.mean(data_array),
