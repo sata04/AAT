@@ -286,9 +286,7 @@ class MainWindow(QMainWindow):
         キャッシュからデータを読み込みます。
         """
         try:
-            file_paths, _ = QFileDialog.getOpenFileNames(
-                self, "CSVファイルを選択", "", "CSV files (*.csv)"
-            )
+            file_paths, _ = QFileDialog.getOpenFileNames(self, "CSVファイルを選択", "", "CSV files (*.csv)")
             if not file_paths:
                 logger.info("ファイルは選択されませんでした")
                 return
@@ -326,16 +324,12 @@ class MainWindow(QMainWindow):
             )
 
             for file_idx, file_path in enumerate(file_paths):
-                logger.info(
-                    f"ファイル処理開始 ({file_idx + 1}/{total_files}): {file_path}"
-                )
+                logger.info(f"ファイル処理開始 ({file_idx + 1}/{total_files}): {file_path}")
                 file_name_without_ext = os.path.splitext(os.path.basename(file_path))[0]
 
                 # 進捗更新
                 self.progress_bar.setValue(file_idx)
-                self.processing_status_label.setText(
-                    f"処理中: {file_name_without_ext} ({file_idx + 1}/{total_files})"
-                )
+                self.processing_status_label.setText(f"処理中: {file_name_without_ext} ({file_idx + 1}/{total_files})")
                 QApplication.processEvents()
 
                 # キャッシュの確認
@@ -347,8 +341,7 @@ class MainWindow(QMainWindow):
                             self,
                             "キャッシュ検出",
                             f"このファイル({file_name_without_ext})の処理済みデータが見つかりました。\n再利用しますか？",
-                            QMessageBox.StandardButton.Yes
-                            | QMessageBox.StandardButton.No,
+                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                         )
 
                         if reply == QMessageBox.StandardButton.Yes:
@@ -363,9 +356,7 @@ class MainWindow(QMainWindow):
                                 # キャッシュデータをロード
                                 self.processed_data[file_name_without_ext] = cached_data
                                 self.file_paths[file_name_without_ext] = file_path
-                                logger.info(
-                                    f"キャッシュからデータをロードしました: {file_name_without_ext}"
-                                )
+                                logger.info(f"キャッシュからデータをロードしました: {file_name_without_ext}")
 
                                 # ファイル進捗を100%に設定
                                 self.file_progress_bar.setValue(100)
@@ -381,17 +372,13 @@ class MainWindow(QMainWindow):
                                     QApplication.processEvents()
 
                                     # G-quality評価を計算
-                                    self.calculate_g_quality_for_dataset(
-                                        file_name_without_ext, file_idx, total_files
-                                    )
+                                    self.calculate_g_quality_for_dataset(file_name_without_ext, file_idx, total_files)
 
                                 # 次のファイルへ
                                 continue
 
                 # 通常の処理フロー（キャッシュがない場合またはキャッシュを使用しない場合）
-                self.processing_status_label.setText(
-                    f"データを読み込み中... ({file_idx + 1}/{total_files})"
-                )
+                self.processing_status_label.setText(f"データを読み込み中... ({file_idx + 1}/{total_files})")
                 QApplication.processEvents()
 
                 # データの読み込みと処理
@@ -413,11 +400,7 @@ class MainWindow(QMainWindow):
 
                 except ValueError as e:
                     # 特定のエラーメッセージの場合は列選択ダイアログを表示
-                    if (
-                        len(e.args) > 1
-                        and e.args[0]
-                        == "必要な列が見つかりません。列の選択が必要です。"
-                    ):
+                    if len(e.args) > 1 and e.args[0] == "必要な列が見つかりません。列の選択が必要です。":
                         # 時間列と加速度列の候補を取得
                         time_columns = e.args[1]
                         accel_columns = e.args[2]
@@ -442,16 +425,12 @@ class MainWindow(QMainWindow):
                         dialog = ColumnSelectorDialog(time_columns, accel_columns, self)
                         if dialog.exec():
                             # ダイアログから選択された列を取得
-                            time_column, inner_column, drag_column = (
-                                dialog.get_selected_columns()
-                            )
+                            time_column, inner_column, drag_column = dialog.get_selected_columns()
 
                             # 一時的に設定を上書き
                             temp_config = self.config.copy()
                             temp_config["time_column"] = time_column
-                            temp_config["acceleration_column_inner_capsule"] = (
-                                inner_column
-                            )
+                            temp_config["acceleration_column_inner_capsule"] = inner_column
                             temp_config["acceleration_column_drag_shield"] = drag_column
 
                             # 再度データの読み込みを試みる
@@ -475,8 +454,7 @@ class MainWindow(QMainWindow):
                                     self,
                                     "設定の保存",
                                     "選択した列設定をデフォルトとして保存しますか？",
-                                    QMessageBox.StandardButton.Yes
-                                    | QMessageBox.StandardButton.No,
+                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
                                 )
 
                                 if reply == QMessageBox.StandardButton.Yes:
@@ -492,13 +470,9 @@ class MainWindow(QMainWindow):
                                 else:
                                     # 保存しない場合でも、このファイルの処理には選択した列情報を使用するために
                                     # 現在の処理中ではtemp_configを使い続ける
-                                    logger.info(
-                                        "列設定は一時的に使用されますが、保存はしません"
-                                    )
+                                    logger.info("列設定は一時的に使用されますが、保存はしません")
                             except Exception as e2:
-                                log_exception(
-                                    e2, "選択された列でのデータ読み込み中にエラーが発生"
-                                )
+                                log_exception(e2, "選択された列でのデータ読み込み中にエラーが発生")
                                 QMessageBox.critical(
                                     self,
                                     "エラー",
@@ -514,9 +488,7 @@ class MainWindow(QMainWindow):
                         raise
 
                 # データのフィルタリング
-                self.processing_status_label.setText(
-                    f"データをフィルタリング中... ({file_idx + 1}/{total_files})"
-                )
+                self.processing_status_label.setText(f"データをフィルタリング中... ({file_idx + 1}/{total_files})")
                 QApplication.processEvents()
 
                 (
@@ -567,9 +539,7 @@ class MainWindow(QMainWindow):
                     )
 
                 # グラフの作成と保存
-                self.processing_status_label.setText(
-                    f"グラフを作成中... ({file_idx + 1}/{total_files})"
-                )
+                self.processing_status_label.setText(f"グラフを作成中... ({file_idx + 1}/{total_files})")
                 QApplication.processEvents()
 
                 graph_path = self.plot_gravity_level(
@@ -586,24 +556,18 @@ class MainWindow(QMainWindow):
                 QApplication.processEvents()
 
                 # 統計情報の計算と保存
-                self.processing_status_label.setText(
-                    f"統計情報を計算中... ({file_idx + 1}/{total_files})"
-                )
+                self.processing_status_label.setText(f"統計情報を計算中... ({file_idx + 1}/{total_files})")
                 QApplication.processEvents()
 
                 (
                     min_mean_inner_capsule,
                     min_time_inner_capsule,
                     min_std_inner_capsule,
-                ) = calculate_statistics(
-                    filtered_gravity_level_inner_capsule, filtered_time, self.config
-                )
-                min_mean_drag_shield, min_time_drag_shield, min_std_drag_shield = (
-                    calculate_statistics(
-                        filtered_gravity_level_drag_shield,
-                        filtered_adjusted_time,
-                        self.config,
-                    )
+                ) = calculate_statistics(filtered_gravity_level_inner_capsule, filtered_time, self.config)
+                min_mean_drag_shield, min_time_drag_shield, min_std_drag_shield = calculate_statistics(
+                    filtered_gravity_level_drag_shield,
+                    filtered_adjusted_time,
+                    self.config,
                 )
                 self.file_progress_bar.setValue(80)
                 QApplication.processEvents()
@@ -616,12 +580,8 @@ class MainWindow(QMainWindow):
                     export_config.update(
                         {
                             "time_column": temp_config["time_column"],
-                            "acceleration_column_inner_capsule": temp_config[
-                                "acceleration_column_inner_capsule"
-                            ],
-                            "acceleration_column_drag_shield": temp_config[
-                                "acceleration_column_drag_shield"
-                            ],
+                            "acceleration_column_inner_capsule": temp_config["acceleration_column_inner_capsule"],
+                            "acceleration_column_drag_shield": temp_config["acceleration_column_drag_shield"],
                         }
                     )
                     logger.info(
@@ -632,9 +592,7 @@ class MainWindow(QMainWindow):
                     )
 
                 # データのエクスポート
-                self.processing_status_label.setText(
-                    f"データをエクスポート中... ({file_idx + 1}/{total_files})"
-                )
+                self.processing_status_label.setText(f"データをエクスポート中... ({file_idx + 1}/{total_files})")
                 QApplication.processEvents()
 
                 export_data(
@@ -661,9 +619,7 @@ class MainWindow(QMainWindow):
 
                 # 自動G-quality評価がオンの場合は計算
                 if self.config.get("auto_calculate_g_quality", True):
-                    self.calculate_g_quality_for_dataset(
-                        file_name_without_ext, file_idx, total_files
-                    )
+                    self.calculate_g_quality_for_dataset(file_name_without_ext, file_idx, total_files)
 
                 # ファイル処理完了
                 self.file_progress_bar.setValue(100)
@@ -712,9 +668,7 @@ class MainWindow(QMainWindow):
             logger.info(f"G-quality評価は既に存在します: {dataset_name}")
             return
 
-        self.processing_status_label.setText(
-            f"G-quality評価を計算中... ({file_idx + 1}/{total_files})"
-        )
+        self.processing_status_label.setText(f"G-quality評価を計算中... ({file_idx + 1}/{total_files})")
         QApplication.processEvents()
 
         # G-qualityワーカーを作成して実行
@@ -829,9 +783,7 @@ class MainWindow(QMainWindow):
                 if selected_dataset in self.processed_data:
                     data = self.processed_data[selected_dataset]
                     if self.is_g_quality_mode and "g_quality_data" in data:
-                        self.plot_g_quality_data(
-                            data["g_quality_data"], selected_dataset
-                        )
+                        self.plot_g_quality_data(data["g_quality_data"], selected_dataset)
                     elif self.is_showing_all_data:
                         self.show_all_data(data)
                     else:
@@ -847,9 +799,7 @@ class MainWindow(QMainWindow):
                             original_file_path,
                         )
                 else:
-                    logger.debug(
-                        f"選択されたデータセットが見つかりません: {selected_dataset}"
-                    )
+                    logger.debug(f"選択されたデータセットが見つかりません: {selected_dataset}")
                     # ユーザーにはエラーを表示しない
 
             # グラフの描画を強制的に更新
@@ -895,19 +845,15 @@ class MainWindow(QMainWindow):
 
         for row, (file_name, data) in enumerate(self.processed_data.items()):
             # 各ファイルの統計情報を計算
-            min_mean_inner_capsule, min_time_inner_capsule, min_std_inner_capsule = (
-                calculate_statistics(
-                    data["filtered_gravity_level_inner_capsule"],
-                    data["filtered_time"],
-                    self.config,
-                )
+            min_mean_inner_capsule, min_time_inner_capsule, min_std_inner_capsule = calculate_statistics(
+                data["filtered_gravity_level_inner_capsule"],
+                data["filtered_time"],
+                self.config,
             )
-            min_mean_drag_shield, min_time_drag_shield, min_std_drag_shield = (
-                calculate_statistics(
-                    data["filtered_gravity_level_drag_shield"],
-                    data["filtered_adjusted_time"],
-                    self.config,
-                )
+            min_mean_drag_shield, min_time_drag_shield, min_std_drag_shield = calculate_statistics(
+                data["filtered_gravity_level_drag_shield"],
+                data["filtered_adjusted_time"],
+                self.config,
             )
 
             # テーブルにデータを設定（Noneチェックを追加）
@@ -915,56 +861,32 @@ class MainWindow(QMainWindow):
             self.table.setItem(
                 row,
                 1,
-                QTableWidgetItem(
-                    f"{min_time_inner_capsule:.3f}"
-                    if min_time_inner_capsule is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_time_inner_capsule:.3f}" if min_time_inner_capsule is not None else "None"),
             )
             self.table.setItem(
                 row,
                 2,
-                QTableWidgetItem(
-                    f"{min_mean_inner_capsule:.4f}"
-                    if min_mean_inner_capsule is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_mean_inner_capsule:.4f}" if min_mean_inner_capsule is not None else "None"),
             )
             self.table.setItem(
                 row,
                 3,
-                QTableWidgetItem(
-                    f"{min_std_inner_capsule:.4f}"
-                    if min_std_inner_capsule is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_std_inner_capsule:.4f}" if min_std_inner_capsule is not None else "None"),
             )
             self.table.setItem(
                 row,
                 4,
-                QTableWidgetItem(
-                    f"{min_time_drag_shield:.3f}"
-                    if min_time_drag_shield is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_time_drag_shield:.3f}" if min_time_drag_shield is not None else "None"),
             )
             self.table.setItem(
                 row,
                 5,
-                QTableWidgetItem(
-                    f"{min_mean_drag_shield:.4f}"
-                    if min_mean_drag_shield is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_mean_drag_shield:.4f}" if min_mean_drag_shield is not None else "None"),
             )
             self.table.setItem(
                 row,
                 6,
-                QTableWidgetItem(
-                    f"{min_std_drag_shield:.4f}"
-                    if min_std_drag_shield is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_std_drag_shield:.4f}" if min_std_drag_shield is not None else "None"),
             )
 
         self.table.resizeColumnsToContents()
@@ -1008,63 +930,37 @@ class MainWindow(QMainWindow):
             self.table.setItem(
                 row,
                 1,
-                QTableWidgetItem(
-                    f"{window_size:.3f}" if window_size is not None else "None"
-                ),
+                QTableWidgetItem(f"{window_size:.3f}" if window_size is not None else "None"),
             )
             self.table.setItem(
                 row,
                 2,
-                QTableWidgetItem(
-                    f"{min_time_inner_capsule:.3f}"
-                    if min_time_inner_capsule is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_time_inner_capsule:.3f}" if min_time_inner_capsule is not None else "None"),
             )
             self.table.setItem(
                 row,
                 3,
-                QTableWidgetItem(
-                    f"{min_mean_inner_capsule:.4f}"
-                    if min_mean_inner_capsule is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_mean_inner_capsule:.4f}" if min_mean_inner_capsule is not None else "None"),
             )
             self.table.setItem(
                 row,
                 4,
-                QTableWidgetItem(
-                    f"{min_std_inner_capsule:.4f}"
-                    if min_std_inner_capsule is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_std_inner_capsule:.4f}" if min_std_inner_capsule is not None else "None"),
             )
             self.table.setItem(
                 row,
                 5,
-                QTableWidgetItem(
-                    f"{min_time_drag_shield:.3f}"
-                    if min_time_drag_shield is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_time_drag_shield:.3f}" if min_time_drag_shield is not None else "None"),
             )
             self.table.setItem(
                 row,
                 6,
-                QTableWidgetItem(
-                    f"{min_mean_drag_shield:.4f}"
-                    if min_mean_drag_shield is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_mean_drag_shield:.4f}" if min_mean_drag_shield is not None else "None"),
             )
             self.table.setItem(
                 row,
                 7,
-                QTableWidgetItem(
-                    f"{min_std_drag_shield:.4f}"
-                    if min_std_drag_shield is not None
-                    else "None"
-                ),
+                QTableWidgetItem(f"{min_std_drag_shield:.4f}" if min_std_drag_shield is not None else "None"),
             )
 
         self.table.resizeColumnsToContents()
@@ -1179,9 +1075,7 @@ class MainWindow(QMainWindow):
         ax = self.figure.add_subplot(111)
 
         # カラーマップを使用して、各データセットに異なる色を割り当てる
-        colors = plt.get_cmap("rainbow")(
-            np.linspace(0, 1, len(self.processed_data) * 2)
-        )
+        colors = plt.get_cmap("rainbow")(np.linspace(0, 1, len(self.processed_data) * 2))
         color_index = 0
 
         for file_name, data in self.processed_data.items():
@@ -1359,9 +1253,7 @@ class MainWindow(QMainWindow):
         # グラフ保存パスを設定 (ファイル名_gq.png形式)
         # 型チェック: original_file_pathが文字列でなければ終了
         if not isinstance(original_file_path, str) or not original_file_path:
-            logger.warning(
-                "G-quality: original_file_pathが無効です。グラフを保存できません。"
-            )
+            logger.warning("G-quality: original_file_pathが無効です。グラフを保存できません。")
             return None
         # 出力ディレクトリ構造を作成（export.pyと同じロジック）
         from core.export import create_output_directories
@@ -1422,9 +1314,7 @@ class MainWindow(QMainWindow):
             label="Drag Shield Range",
         )
 
-        ax.set_title(
-            f"The Gravity Level {self.dataset_selector.currentText()} (All Data)"
-        )
+        ax.set_title(f"The Gravity Level {self.dataset_selector.currentText()} (All Data)")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Gravity Level (G)")
         ax.legend()
@@ -1467,9 +1357,7 @@ class MainWindow(QMainWindow):
         """
         if len(self.processed_data) < 2:
             logger.warning("比較モードには少なくとも2つのデータセットが必要です")
-            QMessageBox.warning(
-                self, "警告", "比較するには少なくとも2つのファイルが必要です。"
-            )
+            QMessageBox.warning(self, "警告", "比較するには少なくとも2つのファイルが必要です。")
             return
 
         self.is_comparing = True
@@ -1524,11 +1412,7 @@ class MainWindow(QMainWindow):
                 # まだG-quality評価が行われていないデータセットがある場合
                 self.g_quality_mode_button.setText("G-quality評価モード実行中")
                 self.g_quality_mode_button.setEnabled(False)
-                missing_data_sets = [
-                    name
-                    for name, data in self.processed_data.items()
-                    if "g_quality_data" not in data
-                ]
+                missing_data_sets = [name for name, data in self.processed_data.items() if "g_quality_data" not in data]
                 logger.info(f"G-quality評価が必要なデータセット: {missing_data_sets}")
 
                 # 確認ダイアログの表示
@@ -1559,23 +1443,17 @@ class MainWindow(QMainWindow):
 
                         # 処理状況表示の初期化
                         self.processing_status_label.setVisible(True)
-                        self.processing_status_label.setText(
-                            "G-quality評価を開始します..."
-                        )
+                        self.processing_status_label.setText("G-quality評価を開始します...")
 
                         QApplication.processEvents()
 
                         # G-quality評価を順次実行
                         for idx, dataset_name in enumerate(missing_data_sets):
                             self.progress_bar.setValue(idx)
-                            self.calculate_g_quality_for_dataset(
-                                dataset_name, idx, total_missing
-                            )
+                            self.calculate_g_quality_for_dataset(dataset_name, idx, total_missing)
 
                         self.progress_bar.setValue(total_missing)
-                        self.processing_status_label.setText(
-                            "G-quality評価が完了しました"
-                        )
+                        self.processing_status_label.setText("G-quality評価が完了しました")
 
                         # 3秒後にプログレスバーを非表示にする
                         QTimer.singleShot(3000, self.hide_progress_bars)
@@ -1591,9 +1469,7 @@ class MainWindow(QMainWindow):
                         self.g_quality_mode_button.setEnabled(True)
                         self.update_table()
                         self.update_selected_dataset()
-                        logger.info(
-                            "G-quality評価をスキップし、既存のデータのみで表示します"
-                        )
+                        logger.info("G-quality評価をスキップし、既存のデータのみで表示します")
         else:
             # 通常モードに戻る
             self.g_quality_mode_button.setText("G-quality評価モード")
@@ -1640,9 +1516,7 @@ class MainWindow(QMainWindow):
         self.workers.append(worker)
         worker.progress.connect(self.update_progress)
         worker.finished.connect(
-            lambda result: self.on_g_quality_analysis_finished(
-                result, file_name, original_file_path
-            )
+            lambda result: self.on_g_quality_analysis_finished(result, file_name, original_file_path)
         )
         worker.finished.connect(worker.deleteLater)
         worker.finished.connect(lambda: self.remove_worker(worker))
@@ -1664,9 +1538,7 @@ class MainWindow(QMainWindow):
                 original_file_path,
             )
 
-    def on_g_quality_analysis_finished(
-        self, g_quality_data, file_name, original_file_path
-    ):
+    def on_g_quality_analysis_finished(self, g_quality_data, file_name, original_file_path):
         """
         G-quality解析が完了した時の処理
         """
@@ -1688,9 +1560,7 @@ class MainWindow(QMainWindow):
 
         # 結果をExcelファイルに出力（グラフパスも渡す）
         if original_file_path:
-            export_path = export_g_quality_data(
-                g_quality_data, original_file_path, graph_path
-            )
+            export_path = export_g_quality_data(g_quality_data, original_file_path, graph_path)
             if export_path:
                 QMessageBox.information(
                     self,
@@ -1754,9 +1624,7 @@ class MainWindow(QMainWindow):
         """
         if worker in self.workers:
             self.workers.remove(worker)
-            logger.debug(
-                f"ワーカーをリストから削除しました。残りのワーカー数: {len(self.workers)}"
-            )
+            logger.debug(f"ワーカーをリストから削除しました。残りのワーカー数: {len(self.workers)}")
 
     # ------------------------------------------------
     # その他のメソッド
@@ -1781,9 +1649,7 @@ class MainWindow(QMainWindow):
         """
         # 実行中のワーカーがあれば停止
         if hasattr(self, "workers") and self.workers:
-            logger.info(
-                f"アプリケーション終了: {len(self.workers)}個の実行中ワーカーを停止します"
-            )
+            logger.info(f"アプリケーション終了: {len(self.workers)}個の実行中ワーカーを停止します")
             for worker in self.workers:
                 if worker.isRunning():
                     worker.stop()
@@ -1821,16 +1687,12 @@ class MainWindow(QMainWindow):
             drag_gravity = data["filtered_gravity_level_drag_shield"]
 
             # 選択範囲内のデータを抽出して統計計算
-            self.calculate_selected_range_statistics(
-                inner_time, inner_gravity, drag_time, drag_gravity, xmin, xmax
-            )
+            self.calculate_selected_range_statistics(inner_time, inner_gravity, drag_time, drag_gravity, xmin, xmax)
 
             # 選択範囲をハイライト表示
             self.highlight_selected_range(xmin, xmax)
 
-    def calculate_selected_range_statistics(
-        self, inner_time, inner_gravity, drag_time, drag_gravity, xmin, xmax
-    ):
+    def calculate_selected_range_statistics(self, inner_time, inner_gravity, drag_time, drag_gravity, xmin, xmax):
         """
         選択した範囲内のデータの統計情報を計算する
 
@@ -1910,9 +1772,7 @@ class MainWindow(QMainWindow):
         layout = QVBoxLayout()
 
         # 選択範囲の情報
-        range_label = QLabel(
-            f"選択範囲: {xmin:.4f}秒 ～ {xmax:.4f}秒 (範囲: {xmax - xmin:.4f}秒)"
-        )
+        range_label = QLabel(f"選択範囲: {xmin:.4f}秒 ～ {xmax:.4f}秒 (範囲: {xmax - xmin:.4f}秒)")
         layout.addWidget(range_label)
 
         # 統計情報テーブル
@@ -1934,9 +1794,7 @@ class MainWindow(QMainWindow):
             table.setItem(
                 i,
                 1,
-                QTableWidgetItem(
-                    f"{inner_val:.6f}" if inner_val is not None else "N/A"
-                ),
+                QTableWidgetItem(f"{inner_val:.6f}" if inner_val is not None else "N/A"),
             )
             table.setItem(
                 i,

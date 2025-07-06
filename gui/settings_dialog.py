@@ -65,19 +65,11 @@ class SettingsDialog(QDialog):
         self.time_column = QLineEdit(self.config["time_column"])
         form_layout1.addRow("時間列:", self.time_column)
 
-        self.acceleration_column_inner_capsule = QLineEdit(
-            self.config["acceleration_column_inner_capsule"]
-        )
-        form_layout1.addRow(
-            "加速度列 (Inner Capsule):", self.acceleration_column_inner_capsule
-        )
+        self.acceleration_column_inner_capsule = QLineEdit(self.config["acceleration_column_inner_capsule"])
+        form_layout1.addRow("加速度列 (Inner Capsule):", self.acceleration_column_inner_capsule)
 
-        self.acceleration_column_drag_shield = QLineEdit(
-            self.config["acceleration_column_drag_shield"]
-        )
-        form_layout1.addRow(
-            "加速度列 (Drag Shield):", self.acceleration_column_drag_shield
-        )
+        self.acceleration_column_drag_shield = QLineEdit(self.config["acceleration_column_drag_shield"])
+        form_layout1.addRow("加速度列 (Drag Shield):", self.acceleration_column_drag_shield)
 
         # サンプリングレート設定
         self.sampling_rate = QSpinBox()
@@ -104,9 +96,7 @@ class SettingsDialog(QDialog):
 
         # 自動G-quality評価
         self.auto_calculate_g_quality = QCheckBox()
-        self.auto_calculate_g_quality.setChecked(
-            self.config.get("auto_calculate_g_quality", True)
-        )
+        self.auto_calculate_g_quality.setChecked(self.config.get("auto_calculate_g_quality", True))
         perf_layout.addRow(
             "ファイル読み込み時にG-quality評価を自動計算:",
             self.auto_calculate_g_quality,
@@ -164,12 +154,8 @@ class SettingsDialog(QDialog):
         self.min_seconds_after_start.setRange(0.0, 10.0)
         self.min_seconds_after_start.setDecimals(2)
         self.min_seconds_after_start.setSingleStep(0.1)
-        self.min_seconds_after_start.setValue(
-            self.config.get("min_seconds_after_start", 0.0)
-        )
-        form_layout3.addRow(
-            "終了点の開始点からの最小秒数 (秒):", self.min_seconds_after_start
-        )
+        self.min_seconds_after_start.setValue(self.config.get("min_seconds_after_start", 0.0))
+        form_layout3.addRow("終了点の開始点からの最小秒数 (秒):", self.min_seconds_after_start)
 
         # G-quality解析設定グループ
         g_quality_group = QGroupBox("G-quality解析設定")
@@ -201,9 +187,7 @@ class SettingsDialog(QDialog):
         self.g_quality_start.setDecimals(2)
         self.g_quality_start.setSingleStep(0.01)
         self.g_quality_start.setValue(self.config["g_quality_start"])
-        form_layout.addRow(
-            "G-quality解析開始ウィンドウサイズ (秒):", self.g_quality_start
-        )
+        form_layout.addRow("G-quality解析開始ウィンドウサイズ (秒):", self.g_quality_start)
 
         # G-quality終了ウィンドウサイズ
         self.g_quality_end = QDoubleSpinBox()
@@ -211,9 +195,7 @@ class SettingsDialog(QDialog):
         self.g_quality_end.setDecimals(2)
         self.g_quality_end.setSingleStep(0.01)
         self.g_quality_end.setValue(self.config["g_quality_end"])
-        form_layout.addRow(
-            "G-quality解析終了ウィンドウサイズ (秒):", self.g_quality_end
-        )
+        form_layout.addRow("G-quality解析終了ウィンドウサイズ (秒):", self.g_quality_end)
 
         # G-qualityステップサイズ
         self.g_quality_step = QDoubleSpinBox()
@@ -231,9 +213,7 @@ class SettingsDialog(QDialog):
             layout (QVBoxLayout): ボタンを追加するレイアウト
         """
         # OKとキャンセルボタン
-        button_box = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
+        button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
         layout.addWidget(button_box)

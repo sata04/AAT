@@ -141,9 +141,7 @@ def export_data(
         if reply == QMessageBox.StandardButton.No:
             # 新しいファイル名を生成（連番を付加）
             counter = 1
-            while os.path.exists(
-                os.path.join(results_dir, f"{base_name}_{counter}.xlsx")
-            ):
+            while os.path.exists(os.path.join(results_dir, f"{base_name}_{counter}.xlsx")):
                 counter += 1
             output_file_path = os.path.join(results_dir, f"{base_name}_{counter}.xlsx")
 
@@ -157,21 +155,15 @@ def export_data(
             config = {}
 
         # 時間間隔を計算（サンプリングレートに基づく）
-        sampling_rate = config.get(
-            "sampling_rate", 1000
-        )  # 設定からサンプリングレートを取得、デフォルトは1000Hz
+        sampling_rate = config.get("sampling_rate", 1000)  # 設定からサンプリングレートを取得、デフォルトは1000Hz
         time_step = 1.0 / sampling_rate
 
         # 共通の時間軸を生成
         unified_time = np.arange(start_time, end_time + time_step, time_step)
 
         # 各データを共通の時間軸に補間
-        interpolated_inner_capsule = np.interp(
-            unified_time, time, gravity_level_inner_capsule
-        )
-        interpolated_drag_shield = np.interp(
-            unified_time, adjusted_time, gravity_level_drag_shield
-        )
+        interpolated_inner_capsule = np.interp(unified_time, time, gravity_level_inner_capsule)
+        interpolated_drag_shield = np.interp(unified_time, adjusted_time, gravity_level_drag_shield)
 
         # データフレームの作成（統一された時間軸）
         export_data = pd.DataFrame(
@@ -211,9 +203,7 @@ def export_data(
             try:
                 # 設定から列名を取得
                 time_column = config.get("time_column")
-                acceleration_inner_column = config.get(
-                    "acceleration_column_inner_capsule"
-                )
+                acceleration_inner_column = config.get("acceleration_column_inner_capsule")
                 acceleration_drag_column = config.get("acceleration_column_drag_shield")
 
                 logger.info(
@@ -248,31 +238,21 @@ def export_data(
                             # 元のInner CapsuleとDrag Shieldのデータを準備
                             # 注: 全時間軸上のデータを使用（フィルタリング済みではなく、全データを使用）
                             orig_time_data = raw_data[time_column].values.astype(float)
-                            orig_inner_accel = raw_data[
-                                acceleration_inner_column
-                            ].values.astype(float)
-                            orig_drag_accel = raw_data[
-                                acceleration_drag_column
-                            ].values.astype(float)
+                            orig_inner_accel = raw_data[acceleration_inner_column].values.astype(float)
+                            orig_drag_accel = raw_data[acceleration_drag_column].values.astype(float)
 
                             # drag shield用の元時間を同期点で調整
                             acc_thresh = config.get("acceleration_threshold", 1.0)
                             sync_mask = np.abs(orig_drag_accel) < acc_thresh
                             if sync_mask.any():
                                 sync_idx = np.where(sync_mask)[0][0]
-                                orig_adjusted_time = (
-                                    orig_time_data - orig_time_data[sync_idx]
-                                )
+                                orig_adjusted_time = orig_time_data - orig_time_data[sync_idx]
                             else:
                                 orig_adjusted_time = orig_time_data - orig_time_data[0]
 
                             # 共通の時間軸に合わせて加速度データを補間
-                            inner_accel_interp = np.interp(
-                                unified_time, orig_time_data, orig_inner_accel
-                            )
-                            drag_accel_interp = np.interp(
-                                unified_time, orig_adjusted_time, orig_drag_accel
-                            )
+                            inner_accel_interp = np.interp(unified_time, orig_time_data, orig_inner_accel)
+                            drag_accel_interp = np.interp(unified_time, orig_adjusted_time, orig_drag_accel)
                             acceleration_data = pd.DataFrame(
                                 {
                                     "Time (s)": unified_time,
@@ -280,9 +260,7 @@ def export_data(
                                     "Acceleration (Drag Shield) (m/s²)": drag_accel_interp,
                                 }
                             )
-                            logger.info(
-                                f"共通時間軸で加速度データを作成: {len(acceleration_data)}行"
-                            )
+                            logger.info(f"共通時間軸で加速度データを作成: {len(acceleration_data)}行")
 
                         except Exception as e:
                             logger.error(f"加速度データの作成中にエラー: {e}")
@@ -318,20 +296,12 @@ def export_data(
         # Excelファイルにデータと統計情報を書き込む
         with pd.ExcelWriter(output_file_path, engine="openpyxl") as writer:
             export_data.to_excel(writer, sheet_name="Gravity Level Data", index=False)
-            stats_df.to_excel(
-                writer, sheet_name="Gravity Level Statistics", index=False
-            )
+            stats_df.to_excel(writer, sheet_name="Gravity Level Statistics", index=False)
             if acceleration_data is not None:
-                acceleration_data.to_excel(
-                    writer, sheet_name="Acceleration Data", index=False
-                )
-                logger.info(
-                    f"加速度データをシートに追加しました: {len(acceleration_data)}行"
-                )
+                acceleration_data.to_excel(writer, sheet_name="Acceleration Data", index=False)
+                logger.info(f"加速度データをシートに追加しました: {len(acceleration_data)}行")
             else:
-                logger.warning(
-                    "加速度データが作成されなかったため、シートに追加されません"
-                )
+                logger.warning("加速度データが作成されなかったため、シートに追加されません")
 
         # 保存完了メッセージ - フォルダ名だけを表示するように変更
         graphs_folder = os.path.basename(os.path.dirname(new_graph_path))
@@ -349,9 +319,7 @@ def export_data(
         raise ValueError(error_msg) from e
 
 
-def export_g_quality_data(
-    g_quality_data, original_file_path, g_quality_graph_path=None
-):
+def export_g_quality_data(g_quality_data, original_file_path, g_quality_graph_path=None):
     """
     G-quality解析の結果をエクスポートする
 
@@ -389,9 +357,7 @@ def export_g_quality_data(
 
         try:
             shutil.copy2(g_quality_graph_path, new_graph_path)
-            logger.info(
-                f"G-qualityグラフを保存しました: {g_quality_graph_path} -> {new_graph_path}"
-            )
+            logger.info(f"G-qualityグラフを保存しました: {g_quality_graph_path} -> {new_graph_path}")
         except Exception as e:
             logger.warning(f"G-qualityグラフの保存中にエラーが発生しました: {e}")
 
@@ -442,8 +408,6 @@ def export_g_quality_data(
         workbook.save(output_file_path)
         return output_file_path
     except PermissionError as e:
-        raise ValueError(
-            f"{output_file_path} に書き込みできません。ファイルが開かれている可能性があります。"
-        ) from e
+        raise ValueError(f"{output_file_path} に書き込みできません。ファイルが開かれている可能性があります。") from e
     except Exception as e:
         raise ValueError(f"データの保存中にエラーが発生しました: {e}") from e

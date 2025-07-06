@@ -133,7 +133,5 @@ def save_config(config):
             except Exception as e2:
                 log_exception(e2, "バックアップからの復元に失敗しました")
 
-        QMessageBox.warning(
-            None, "設定保存エラー", f"設定の保存中にエラーが発生しました: {e}"
-        )
+        QMessageBox.warning(None, "設定保存エラー", f"設定の保存中にエラーが発生しました: {e}")
         return False

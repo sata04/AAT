@@ -73,9 +73,7 @@ class ColumnSelectorDialog(QDialog):
         inner_label = QLabel("内カプセル加速度列 (Inner Capsule):")
         self.inner_combo = QComboBox()
         self.inner_combo.addItems(self.accel_columns)
-        self.inner_combo.setSizeAdjustPolicy(
-            QComboBox.SizeAdjustPolicy.AdjustToContents
-        )
+        self.inner_combo.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToContents)
         inner_layout.addWidget(inner_label)
         inner_layout.addWidget(self.inner_combo)
         self.main_layout.addLayout(inner_layout)
@@ -124,9 +122,7 @@ class ColumnSelectorDialog(QDialog):
             return
 
         # 選択が有効であればダイアログを閉じる
-        logger.info(
-            f"列選択: 時間列={time_col}, Inner Capsule={inner_col}, Drag Shield={drag_col}"
-        )
+        logger.info(f"列選択: 時間列={time_col}, Inner Capsule={inner_col}, Drag Shield={drag_col}")
         self.accept()
 
     def get_selected_columns(self):

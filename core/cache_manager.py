@@ -132,9 +132,7 @@ def save_to_cache(processed_data, file_path, cache_id, config):
         if "raw_data" in data_to_save:
             # rawデータはサイズが大きいため、サイズ削減のためにhdfで保存
             raw_data_cache_path = cache_path.replace(".pickle", "_raw.h5")
-            data_to_save["raw_data"].to_hdf(
-                raw_data_cache_path, key="raw_data", mode="w"
-            )
+            data_to_save["raw_data"].to_hdf(raw_data_cache_path, key="raw_data", mode="w")
             data_to_save["raw_data"] = None  # pickleには保存しないよう置き換え
 
         # メタデータを追加
