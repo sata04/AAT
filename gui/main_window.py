@@ -1427,10 +1427,10 @@ class MainWindow(QMainWindow):
         ax.set_title(f"The Gravity Level {self.dataset_selector.currentText()} (All Data)")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Gravity Level (G)")
-        
+
         # 全体表示モードではX軸の制限を設けず、データの全範囲を表示
         # （エクスポート対象の通常グラフのみ1.45秒に固定）
-        
+
         ax.legend()
         ax.grid(True)
 
