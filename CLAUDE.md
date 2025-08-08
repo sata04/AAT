@@ -16,8 +16,16 @@ pip install -r requirements.txt
 # Run the application
 python main.py
 
-# Run with debug output (macOS)
+# Run with debug output (shows all logs)
 AAT_DEBUG=1 python main.py
+
+# Run with verbose output (shows INFO level logs)
+python main.py --verbose
+# or
+python main.py -v
+
+# Set custom log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
+AAT_LOG_LEVEL=INFO python main.py
 
 # Code quality and formatting
 ruff check .                  # Lint all files
@@ -124,7 +132,7 @@ AAT/
 
 Critical settings in `config.json`:
 - `sampling_rate`: Data frequency (default: 1000 Hz) - affects all time-based calculations
-- `gravity_constant`: Reference gravity value (default: 9.79758 m/s²)
+- `gravity_constant`: Reference gravity value (default: 9.797578 m/s²)
 - `acceleration_threshold`: Sync point detection threshold (default: 0.5 m/s²)
 - `window_size`: Primary analysis window (default: 0.1 seconds)
 - `g_quality_start/end/step`: Multi-scale G-quality analysis parameters (0.1-0.5s, 0.05s step)
