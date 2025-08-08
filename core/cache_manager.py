@@ -12,6 +12,7 @@ import json
 import os
 import pickle
 from datetime import datetime
+from pathlib import Path
 
 import pandas as pd
 
@@ -131,7 +132,8 @@ def save_to_cache(processed_data, file_path, cache_id, config):
         # Pandasオブジェクトが安全に保存されているか確認
         if "raw_data" in data_to_save:
             # rawデータはサイズが大きいため、サイズ削減のためにhdfで保存
-            raw_data_cache_path = cache_path.replace(".pickle", "_raw.h5")
+            cache_path_obj = Path(cache_path)
+            raw_data_cache_path = cache_path_obj.with_name(cache_path_obj.stem + "_raw.h5")
             data_to_save["raw_data"].to_hdf(raw_data_cache_path, key="raw_data", mode="w")
             data_to_save["raw_data"] = None  # pickleには保存しないよう置き換え
 
@@ -185,7 +187,8 @@ def load_from_cache(file_path, cache_id):
 
         # raw_dataがあれば復元
         if "raw_data" in data and data["raw_data"] is None:
-            raw_data_cache_path = cache_path.replace(".pickle", "_raw.h5")
+            cache_path_obj = Path(cache_path)
+            raw_data_cache_path = cache_path_obj.with_name(cache_path_obj.stem + "_raw.h5")
             if os.path.exists(raw_data_cache_path):
                 try:
                     data["raw_data"] = pd.read_hdf(raw_data_cache_path, key="raw_data")
@@ -229,7 +232,8 @@ def delete_cache(file_path, cache_id=None):
         if cache_id:
             # 特定のキャッシュだけを削除
             cache_path = get_cache_path(file_path, cache_id)
-            raw_data_cache_path = cache_path.replace(".pickle", "_raw.h5")
+            cache_path_obj = Path(cache_path)
+            raw_data_cache_path = cache_path_obj.with_name(cache_path_obj.stem + "_raw.h5")
 
             if os.path.exists(cache_path):
                 os.remove(cache_path)

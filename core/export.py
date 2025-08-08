@@ -6,7 +6,9 @@
 重力レベルデータとグラフ、G-quality解析結果を保存します。
 """
 
-import os
+import shutil
+from pathlib import Path
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
@@ -20,7 +22,7 @@ from core.logger import get_logger, log_exception
 logger = get_logger("export")
 
 
-def create_output_directories(csv_dir=None):
+def create_output_directories(csv_dir: Optional[str] = None) -> tuple[Path, Path]:
     """
     出力用ディレクトリ構造を作成する
 
@@ -34,10 +36,10 @@ def create_output_directories(csv_dir=None):
         tuple: 作成した結果ディレクトリとグラフディレクトリのパス
     """
     # プロジェクトルートを取得（フォールバック用）
-    script_dir = os.path.dirname(os.path.abspath(__file__))
-    project_root = os.path.abspath(os.path.join(script_dir, os.pardir))
+    script_path = Path(__file__).resolve()
+    project_root = script_path.parent.parent
     # 基準ディレクトリ: csv_dir が指定されていればCSVファイルのディレクトリを使用し、未指定時はプロジェクトルートをフォールバック
-    base_dir = csv_dir if csv_dir else project_root
+    base_dir = Path(csv_dir) if csv_dir else project_root
 
     # デバッグ情報を追加
     logger.debug(f"create_output_directories called with csv_dir: {csv_dir}")
@@ -50,11 +52,11 @@ def create_output_directories(csv_dir=None):
 
     logger.debug(f"Using base_dir: {base_dir}")
 
-    results_dir = os.path.join(base_dir, "results_AAT")
-    graphs_dir = os.path.join(results_dir, "graphs")
+    results_dir = base_dir / "results_AAT"
+    graphs_dir = results_dir / "graphs"
 
-    os.makedirs(results_dir, exist_ok=True)
-    os.makedirs(graphs_dir, exist_ok=True)
+    results_dir.mkdir(parents=True, exist_ok=True)
+    graphs_dir.mkdir(parents=True, exist_ok=True)
 
     logger.debug(f"Created directories: results={results_dir}, graphs={graphs_dir}")
 
@@ -62,23 +64,23 @@ def create_output_directories(csv_dir=None):
 
 
 def export_data(
-    time,
-    adjusted_time,
-    gravity_level_inner_capsule,
-    gravity_level_drag_shield,
-    file_path,
-    min_mean_inner_capsule,
-    min_time_inner_capsule,
-    min_std_inner_capsule,
-    min_mean_drag_shield,
-    min_time_drag_shield,
-    min_std_drag_shield,
-    graph_path,
-    filtered_time,  # フィルタリング済みの時間データを追加
-    filtered_adjusted_time,  # フィルタリング済みの調整時間データを追加
-    config=None,  # 設定パラメータを追加
-    raw_data=None,  # 元のCSVデータを追加
-):
+    time: pd.Series,
+    adjusted_time: pd.Series,
+    gravity_level_inner_capsule: pd.Series,
+    gravity_level_drag_shield: pd.Series,
+    file_path: str,
+    min_mean_inner_capsule: Optional[float],
+    min_time_inner_capsule: Optional[float],
+    min_std_inner_capsule: Optional[float],
+    min_mean_drag_shield: Optional[float],
+    min_time_drag_shield: Optional[float],
+    min_std_drag_shield: Optional[float],
+    graph_path: Optional[str],
+    filtered_time: pd.Series,  # フィルタリング済みの時間データを追加  # noqa: ARG001
+    filtered_adjusted_time: pd.Series,  # フィルタリング済みの調整時間データを追加  # noqa: ARG001
+    config: Optional[dict[str, Any]] = None,  # 設定パラメータを追加
+    raw_data: Optional[pd.DataFrame] = None,  # 元のCSVデータを追加
+) -> str:
     """
     処理されたデータとグラフをExcelにエクスポートする
 
@@ -111,26 +113,27 @@ def export_data(
         ValueError: データのエクスポート中にエラーが発生した場合
     """
     # CSVファイルのディレクトリとファイル名を取得
-    csv_dir = os.path.dirname(file_path)
-    base_name = os.path.splitext(os.path.basename(file_path))[0]
+    file_path_obj = Path(file_path)
+    csv_dir = str(file_path_obj.parent)
+    base_name = file_path_obj.stem
 
     # 出力ディレクトリ構造を作成
     results_dir, graphs_dir = create_output_directories(csv_dir)
 
     # 出力ファイルパスの設定（シンプルな名前を使用）
-    output_file_path = os.path.join(results_dir, f"{base_name}.xlsx")
+    output_file_path = results_dir / f"{base_name}.xlsx"
 
     # グラフファイルの新しいパスを設定（短い名前を使用）
-    new_graph_path = os.path.join(graphs_dir, f"{base_name}_gl.png")
+    new_graph_path = graphs_dir / f"{base_name}_gl.png"
 
     # 既存グラフが元のパスに存在する場合、新しいパスにコピー
-    if os.path.exists(graph_path) and graph_path != new_graph_path:
-        import shutil
-
-        shutil.copy2(graph_path, new_graph_path)
+    if graph_path is not None:
+        graph_path_obj = Path(graph_path)
+        if graph_path_obj.exists() and graph_path_obj != new_graph_path:
+            shutil.copy2(graph_path, new_graph_path)
 
     # 既存ファイルの確認
-    if os.path.exists(output_file_path):
+    if output_file_path.exists():
         reply = QMessageBox.question(
             None,
             "確認",
@@ -141,9 +144,9 @@ def export_data(
         if reply == QMessageBox.StandardButton.No:
             # 新しいファイル名を生成（連番を付加）
             counter = 1
-            while os.path.exists(os.path.join(results_dir, f"{base_name}_{counter}.xlsx")):
+            while (results_dir / f"{base_name}_{counter}.xlsx").exists():
                 counter += 1
-            output_file_path = os.path.join(results_dir, f"{base_name}_{counter}.xlsx")
+            output_file_path = results_dir / f"{base_name}_{counter}.xlsx"
 
     try:
         # 共通の時間軸を作成
@@ -304,11 +307,11 @@ def export_data(
                 logger.warning("加速度データが作成されなかったため、シートに追加されません")
 
         # 保存完了メッセージ - フォルダ名だけを表示するように変更
-        graphs_folder = os.path.basename(os.path.dirname(new_graph_path))
+        graphs_folder = new_graph_path.parent.name
         message = f"Gravity Levelデータが {output_file_path} に保存されました\nグラフは {graphs_folder} フォルダに保存されました"
         QMessageBox.information(None, "保存完了", message)
 
-        return output_file_path
+        return str(output_file_path)
     except PermissionError as e:
         error_msg = f"{output_file_path} に書き込みできません。権限を確認してください。"
         logger.error(error_msg)
@@ -341,23 +344,31 @@ def export_g_quality_data(g_quality_data, original_file_path, g_quality_graph_pa
         ValueError: データのエクスポート中にエラーが発生した場合
     """
     # CSVファイルのディレクトリとファイル名を取得
-    csv_dir = os.path.dirname(original_file_path)
-    base_name = os.path.splitext(os.path.basename(original_file_path))[0]
+    file_path_obj = Path(original_file_path)
+    csv_dir = str(file_path_obj.parent)
+    base_name = file_path_obj.stem
 
     # 出力ディレクトリ構造を作成
     results_dir, graphs_dir = create_output_directories(csv_dir)
 
     # G-qualityグラフの処理
-    if g_quality_graph_path and os.path.exists(g_quality_graph_path):
+    if g_quality_graph_path and Path(g_quality_graph_path).exists():
         # グラフファイルの新しいパスを設定（短い名前を使用）
-        new_graph_path = os.path.join(graphs_dir, f"{base_name}_gq.png")
+        new_graph_path = graphs_dir / f"{base_name}_gq.png"
 
-        # 常に上書きコピーを実行（パス比較を行わない）
+        # 同じファイルでない場合のみコピーを実行
         import shutil
 
         try:
-            shutil.copy2(g_quality_graph_path, new_graph_path)
-            logger.info(f"G-qualityグラフを保存しました: {g_quality_graph_path} -> {new_graph_path}")
+            # パスを正規化して比較
+            source_path = Path(g_quality_graph_path).resolve()
+            dest_path = new_graph_path.resolve()
+
+            if source_path != dest_path:
+                shutil.copy2(g_quality_graph_path, new_graph_path)
+                logger.info(f"G-qualityグラフを保存しました: {g_quality_graph_path} -> {new_graph_path}")
+            else:
+                logger.debug(f"G-qualityグラフは既に正しい場所にあります: {new_graph_path}")
         except Exception as e:
             logger.warning(f"G-qualityグラフの保存中にエラーが発生しました: {e}")
 
@@ -376,7 +387,7 @@ def export_g_quality_data(g_quality_data, original_file_path, g_quality_graph_pa
     )
 
     # 出力ファイルパスの設定
-    output_file_path = os.path.join(results_dir, f"{base_name}.xlsx")
+    output_file_path = results_dir / f"{base_name}.xlsx"
 
     try:
         # 既存のExcelファイルを読み込むか、新規作成
