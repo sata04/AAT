@@ -102,7 +102,7 @@ def main():
 
         # アプリケーション設定
         app.setApplicationName("AAT")
-        app.setApplicationVersion("9.1.0")
+        app.setApplicationVersion("9.2.0")
         app.setOrganizationName("AAT Development Team")
 
         logger.info("MainWindowを作成します")

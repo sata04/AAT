@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AAT (Acceleration Analysis Tool) v9.1.0 is a Python desktop application for analyzing experimental data in microgravity environments. It processes acceleration data from Inner Capsule and Drag Shield sensors, calculates gravity levels, and performs statistical analysis to evaluate microgravity quality using a PyQt6 GUI.
+AAT (Acceleration Analysis Tool) v9.2.0 is a Python desktop application for analyzing experimental data in microgravity environments. It processes acceleration data from Inner Capsule and Drag Shield sensors, calculates gravity levels, and performs statistical analysis to evaluate microgravity quality using a PyQt6 GUI.
 
 ## Essential Commands
 

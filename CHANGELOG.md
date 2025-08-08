@@ -7,22 +7,39 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [9.2.0] - 2025-08-08
+
 ### Added
-- 開発環境セットアップの改善
-- Code quality toolsの統合（Ruff）
-- CI/CDパイプライン（GitHub Actions）
-- Pre-commitフックの設定
-- VSCode設定ファイル
+- 開発環境セットアップの改善と自動化
+- Code quality toolsの統合（Ruff linter/formatter）
+- CI/CDパイプライン（GitHub Actions）の追加
+- Pre-commitフックによる自動コード品質チェック
+- VSCode設定ファイル（推奨拡張機能、設定）
 - 包括的なドキュメント（API、ユーザーマニュアル、開発者ガイド）
+- コマンドライン引数のサポート（--verbose, -v）
+- 環境変数によるデバッグ制御（AAT_DEBUG, AAT_LOG_LEVEL）
+- カスタム例外クラスによるエラーハンドリングの改善
+- プロジェクト構造の最適化（config/, docs/ディレクトリ）
 
 ### Changed
 - pyproject.tomlベースのプロジェクト構成に移行
-- より厳密なコード品質基準の適用
+- 依存関係管理をuvパッケージマネージャーに移行
+- より厳密なコード品質基準の適用（Ruff設定）
+- ロギングシステムの拡張と改善
+- キャッシュ検証ロジックの改善
+- データ処理パイプラインの最適化
+- GUI応答性とエラーメッセージの改善
 
 ### Fixed
 - macOS環境でのPyQt6関連の警告を抑制
+- バックグラウンドワーカーのエラーハンドリング強化
+- 設定ファイル検証の改善
 
-## [9.1.0] - 2024-12-01
+### Security
+- 入力検証の強化
+- エラーメッセージの安全な表示
+
+## [9.1.0] - 2025-05-25
 
 ### Added
 - 出力ディレクトリ管理機能の強化
@@ -40,7 +57,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - グラフ表示の軸ラベルが重なる問題
 - キャッシュファイルの破損時のエラーハンドリング
 
-## [9.0.0] - 2024-11-15
+## [9.0.0] - 2025-05-05
 
 ### Added
 - バックグラウンド処理（QThread）によるUIの応答性向上
@@ -65,6 +82,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 詳細な変更内容については、各リリースのGitHubリリースページを参照してください。
 
-[Unreleased]: https://github.com/sata04/AAT/compare/v9.1.0...HEAD
+[Unreleased]: https://github.com/sata04/AAT/compare/v9.2.0...HEAD
+[9.2.0]: https://github.com/sata04/AAT/compare/v9.1.0...v9.2.0
 [9.1.0]: https://github.com/sata04/AAT/compare/v9.0.0...v9.1.0
 [9.0.0]: https://github.com/sata04/AAT/releases/tag/v9.0.0

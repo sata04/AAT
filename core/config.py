@@ -19,7 +19,7 @@ from core.logger import get_logger, log_exception
 logger = get_logger("config")
 
 # アプリケーションのバージョン情報
-APP_VERSION: str = "9.1.0"
+APP_VERSION: str = "9.2.0"
 
 
 def load_config() -> dict[str, Any]:

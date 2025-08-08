@@ -274,7 +274,7 @@ G-quality解析結果を既存のExcelファイルに追加します。
 
 #### `APP_VERSION`
 - **型**: `str`
-- **値**: `"9.1.0"`
+- **値**: `"9.2.0"`
 - **説明**: アプリケーションのバージョン番号
 
 ### 関数
@@ -320,7 +320,7 @@ G-quality解析結果を既存のExcelファイルに追加します。
     "min_seconds_after_start": 0.0,  # 開始後の最小秒数
     "auto_calculate_g_quality": True,  # 自動G-quality計算
     "use_cache": True,  # キャッシュ使用フラグ
-    "app_version": "9.1.0"  # アプリケーションバージョン
+    "app_version": "9.2.0"  # アプリケーションバージョン
 }
 ```
 
