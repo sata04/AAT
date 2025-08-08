@@ -7,7 +7,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-## [9.3.0] - 2025-08-08
+## [9.3.0] - 2025-08-09
 
 ### Changed
 - デフォルト設定でのInner Capsule加速度反転オプション (`invert_inner_acceleration`) を `true` に変更
