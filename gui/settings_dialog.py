@@ -121,6 +121,14 @@ class SettingsDialog(QDialog):
         self.ylim_max.setValue(self.config["ylim_max"])
         form_layout2.addRow("グラフY軸最大値:", self.ylim_max)
 
+        # デフォルトグラフ表示時間
+        self.default_graph_duration = QDoubleSpinBox()
+        self.default_graph_duration.setRange(0.1, 10.0)
+        self.default_graph_duration.setDecimals(2)
+        self.default_graph_duration.setSingleStep(0.05)
+        self.default_graph_duration.setValue(self.config.get("default_graph_duration", 1.45))
+        form_layout2.addRow("デフォルトグラフ表示時間 (秒):", self.default_graph_duration)
+
         # 解析設定グループ
         analysis_group = QGroupBox("解析設定")
         form_layout3 = QFormLayout(analysis_group)
@@ -242,6 +250,7 @@ class SettingsDialog(QDialog):
             "min_seconds_after_start": self.min_seconds_after_start.value(),
             "use_cache": self.use_cache.isChecked(),
             "auto_calculate_g_quality": self.auto_calculate_g_quality.isChecked(),
+            "default_graph_duration": self.default_graph_duration.value(),
         }
 
         logger.debug(f"設定変更: {settings}")
