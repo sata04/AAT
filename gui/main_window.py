@@ -10,6 +10,10 @@
 import os
 import sys
 
+# matplotlib バックエンドを明示的に設定（GUI用）
+import matplotlib
+
+matplotlib.use("Qt5Agg")  # PyQt6でも互換性があるQt5Aggを使用
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -247,30 +251,89 @@ class MainWindow(QMainWindow):
         # ファイル名とパスのマッピング
         self.file_paths = {}  # ファイル名とパスを保存する辞書
 
+    def _clear_span_selectors(self):
+        """
+        SpanSelectorを安全にクリアする
+        """
+        try:
+            for span in self.span_selectors:
+                if hasattr(span, "disconnect"):
+                    span.disconnect()
+                # matplotlibオブジェクトの明示的な削除
+                if hasattr(span, "ax"):
+                    span.ax = None
+            self.span_selectors.clear()
+            logger.debug("SpanSelectorを安全にクリアしました")
+        except Exception as e:
+            logger.warning(f"SpanSelectorのクリア中にエラー: {e}")
+            # エラーが発生してもリストはクリア
+            self.span_selectors.clear()
+
     def _suppress_qt_messages(self):
         """
-        特定のQtメッセージを抑制する
+        特定のQtメッセージを抑制し、macOS固有の設定を最適化する
         """
         try:
             from PyQt6.QtCore import QtMsgType, qInstallMessageHandler
 
             def message_handler(msg_type, context, message):
-                # Layer-backingのメッセージを抑制
-                if "Layer-backing is always enabled" in message:
+                # macOS固有の抑制対象メッセージ
+                suppressed_messages = [
+                    "Layer-backing is always enabled",
+                    "Window move completed without beginning",
+                    "TSM",
+                    "kCGErrorIllegalArgument",
+                    "ApplePersistenceIgnoreState",
+                    "QCocoaWindow",
+                    "Qt internal warning",
+                ]
+
+                # 抑制対象メッセージをチェック
+                if any(suppressed in message for suppressed in suppressed_messages):
                     return
-                # その他のメッセージは標準のハンドラで処理
-                if msg_type == QtMsgType.QtWarningMsg:
-                    logger.warning(f"Qt Warning: {message}")
-                elif msg_type == QtMsgType.QtCriticalMsg:
+
+                # 重要なエラーは必ず出力
+                if msg_type == QtMsgType.QtCriticalMsg:
                     logger.error(f"Qt Critical: {message}")
                 elif msg_type == QtMsgType.QtFatalMsg:
                     logger.critical(f"Qt Fatal: {message}")
+                    # 致命的なエラーの場合は詳細情報も出力
+                    if context:
+                        logger.critical(
+                            f"Context - File: {context.file}, Line: {context.line}, Function: {context.function}"
+                        )
+                elif msg_type == QtMsgType.QtWarningMsg:
+                    # 重要でない警告は抑制、重要な警告は出力
+                    if any(keyword in message.lower() for keyword in ["crash", "abort", "segmentation", "exception"]):
+                        logger.warning(f"Qt Warning: {message}")
 
             # カスタムメッセージハンドラを設定
             qInstallMessageHandler(message_handler)
-            logger.info("Qtメッセージハンドラを設定しました")
+
+            # macOS固有の追加設定
+            if sys.platform == "darwin":
+                from PyQt6.QtWidgets import QApplication
+
+                app = QApplication.instance()
+                if app:
+                    # アプリケーション属性の設定（PyQt6で利用可能なもののみ）
+                    try:
+                        # PyQt6ではAA_EnableHighDpiScalingとAA_UseHighDpiPixmapsは削除されました
+                        # High DPIサポートはデフォルトで有効になっています
+                        if hasattr(Qt.ApplicationAttribute, "AA_DontShowIconsInMenus"):
+                            app.setAttribute(Qt.ApplicationAttribute.AA_DontShowIconsInMenus, True)
+
+                        # macOS固有のスタイル設定
+                        if hasattr(Qt.ApplicationAttribute, "AA_DontUseNativeMenuBar"):
+                            app.setAttribute(Qt.ApplicationAttribute.AA_DontUseNativeMenuBar, False)
+                    except Exception as attr_error:
+                        logger.warning(f"一部のQt属性設定に失敗しました: {attr_error}")
+
+            logger.info("QtメッセージハンドラとmacOS設定を最適化しました")
+
         except Exception as e:
             log_exception(e, "Qtメッセージハンドラの設定に失敗")
+            logger.warning("デフォルトのQt設定を使用します")
 
     # ------------------------------------------------
     # ファイル処理関連メソッド
@@ -679,6 +742,7 @@ class MainWindow(QMainWindow):
             self.config,
             file_idx,
             total_files,
+            data["filtered_adjusted_time"],
         )
 
         # 同期的に実行する（非同期実行の複雑さを避けるため）
@@ -1013,8 +1077,11 @@ class MainWindow(QMainWindow):
 
         ax.set_ylim(config["ylim_min"], config["ylim_max"])
 
-        # x軸の範囲を0から設定
-        ax.set_xlim(0, max(time.max(), adjusted_time.max()))
+        # x軸の範囲を設定（デフォルト1.45秒、データがそれより短い場合はデータの最大値まで）
+        default_duration = config.get("default_graph_duration", 1.45)
+        max_time = max(time.max(), adjusted_time.max())
+        x_limit = min(default_duration, max_time) if max_time < default_duration else default_duration
+        ax.set_xlim(0, x_limit)
 
         ax.set_title(f"The Gravity Level {file_name_without_ext}")
         ax.set_xlabel("Time (s)")
@@ -1034,8 +1101,8 @@ class MainWindow(QMainWindow):
         )
 
         # 範囲選択機能を追加
-        # 既存のSpanSelectorをクリア
-        self.span_selectors.clear()
+        # 既存のSpanSelectorを安全にクリア
+        self._clear_span_selectors()
 
         # SpanSelectorを追加
         span = SpanSelector(
@@ -1080,17 +1147,21 @@ class MainWindow(QMainWindow):
 
         for file_name, data in self.processed_data.items():
             if self.is_g_quality_mode:
-                if "g_quality_data" in data:
-                    # G-quality モードでの比較プロット
-                    (
-                        window_sizes,
-                        min_times_inner_capsule,
-                        min_means_inner_capsule,
-                        min_stds_inner_capsule,
-                        min_times_drag_shield,
-                        min_means_drag_shield,
-                        min_stds_drag_shield,
-                    ) = zip(*data["g_quality_data"])
+                if "g_quality_data" in data and data["g_quality_data"]:
+                    # G-quality データが存在し、空でない場合のみプロット
+                    try:
+                        (
+                            window_sizes,
+                            min_times_inner_capsule,
+                            min_means_inner_capsule,
+                            min_stds_inner_capsule,
+                            min_times_drag_shield,
+                            min_means_drag_shield,
+                            min_stds_drag_shield,
+                        ) = zip(*data["g_quality_data"])
+                    except ValueError as e:
+                        print(f"警告: {file_name} のG-qualityデータが不正です: {e}")
+                        continue
                     ax.plot(
                         window_sizes,
                         min_means_inner_capsule,
@@ -1154,6 +1225,16 @@ class MainWindow(QMainWindow):
             ax.set_ylabel("Gravity Level (G)")
             if not self.is_showing_all_data:
                 ax.set_ylim(self.config["ylim_min"], self.config["ylim_max"])
+                # 比較モードでもX軸の範囲を統一（デフォルト1.45秒）
+                default_duration = self.config.get("default_graph_duration", 1.45)
+                # 全データセットの最大時間を確認
+                max_time_all = 0
+                for data in self.processed_data.values():
+                    if "filtered_time" in data and "filtered_adjusted_time" in data:
+                        max_time = max(data["filtered_time"].max(), data["filtered_adjusted_time"].max())
+                        max_time_all = max(max_time_all, max_time)
+                x_limit = min(default_duration, max_time_all) if max_time_all < default_duration else default_duration
+                ax.set_xlim(0, x_limit)
 
         ax.legend()
         ax.grid(True)
@@ -1170,7 +1251,7 @@ class MainWindow(QMainWindow):
         )
 
         # 比較モードではSpanSelectorを追加しない（選択範囲の統計計算を無効化）
-        self.span_selectors.clear()
+        self._clear_span_selectors()
 
         self.canvas.draw()
 
@@ -1188,16 +1269,45 @@ class MainWindow(QMainWindow):
         self.figure.clear()
         ax = self.figure.add_subplot(111)
 
+        # G-qualityデータが空でないことを確認
+        if not g_quality_data:
+            ax.text(
+                0.5,
+                0.5,
+                "G-qualityデータが不十分です\nデータ長を確認してください",
+                horizontalalignment="center",
+                verticalalignment="center",
+                transform=ax.transAxes,
+                fontsize=14,
+            )
+            ax.set_title(f"G-quality Analysis: {file_name}")
+            self.canvas.draw()
+            return None
+
         # データをアンパック
-        (
-            window_sizes,
-            min_times_inner_capsule,
-            min_means_inner_capsule,
-            min_stds_inner_capsule,
-            min_times_drag_shield,
-            min_means_drag_shield,
-            min_stds_drag_shield,
-        ) = zip(*g_quality_data)
+        try:
+            (
+                window_sizes,
+                min_times_inner_capsule,
+                min_means_inner_capsule,
+                min_stds_inner_capsule,
+                min_times_drag_shield,
+                min_means_drag_shield,
+                min_stds_drag_shield,
+            ) = zip(*g_quality_data)
+        except ValueError as e:
+            ax.text(
+                0.5,
+                0.5,
+                f"G-qualityデータの形式が不正です\n{str(e)}",
+                horizontalalignment="center",
+                verticalalignment="center",
+                transform=ax.transAxes,
+                fontsize=14,
+            )
+            ax.set_title(f"G-quality Analysis: {file_name}")
+            self.canvas.draw()
+            return None
 
         ax.plot(
             window_sizes,
@@ -1248,7 +1358,7 @@ class MainWindow(QMainWindow):
         )
 
         # SpanSelectorをクリア（G-qualityモードでは選択範囲機能を無効化）
-        self.span_selectors.clear()
+        self._clear_span_selectors()
 
         # グラフ保存パスを設定 (ファイル名_gq.png形式)
         # 型チェック: original_file_pathが文字列でなければ終了
@@ -1317,6 +1427,10 @@ class MainWindow(QMainWindow):
         ax.set_title(f"The Gravity Level {self.dataset_selector.currentText()} (All Data)")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Gravity Level (G)")
+        
+        # 全体表示モードではX軸の制限を設けず、データの全範囲を表示
+        # （エクスポート対象の通常グラフのみ1.45秒に固定）
+        
         ax.legend()
         ax.grid(True)
 
@@ -1332,7 +1446,7 @@ class MainWindow(QMainWindow):
         )
 
         # 全体表示モードではSpanSelectorを追加しない（選択範囲の統計計算を無効化）
-        self.span_selectors.clear()
+        self._clear_span_selectors()
 
         self.canvas.draw()
 
@@ -1492,6 +1606,7 @@ class MainWindow(QMainWindow):
         filtered_gravity_level_drag_shield,
         file_name,
         original_file_path,
+        filtered_adjusted_time=None,
     ):
         """
         指定されたデータに対してG-quality解析を実行する
@@ -1502,6 +1617,7 @@ class MainWindow(QMainWindow):
             filtered_gravity_level_drag_shield (pandas.Series): Drag Shieldの重力レベル
             file_name (str): ファイル名
             original_file_path (str): 元のファイルパス
+            filtered_adjusted_time (pandas.Series, optional): Drag Shield用のフィルタリングされた調整時間データ
         """
         self.progress_bar.setVisible(True)
         self.progress_bar.setValue(0)
@@ -1512,6 +1628,7 @@ class MainWindow(QMainWindow):
             filtered_gravity_level_inner_capsule,
             filtered_gravity_level_drag_shield,
             self.config,
+            filtered_adjusted_time=filtered_adjusted_time if filtered_adjusted_time is not None else filtered_time,
         )
         self.workers.append(worker)
         worker.progress.connect(self.update_progress)
@@ -1536,6 +1653,7 @@ class MainWindow(QMainWindow):
                 data["filtered_gravity_level_drag_shield"],
                 dataset_name,
                 original_file_path,
+                data.get("filtered_adjusted_time"),
             )
 
     def on_g_quality_analysis_finished(self, g_quality_data, file_name, original_file_path):
@@ -1647,13 +1765,28 @@ class MainWindow(QMainWindow):
 
         実行中のワーカーをすべて停止してから終了します。
         """
-        # 実行中のワーカーがあれば停止
+        # 実行中のワーカーがあれば安全に停止
         if hasattr(self, "workers") and self.workers:
             logger.info(f"アプリケーション終了: {len(self.workers)}個の実行中ワーカーを停止します")
             for worker in self.workers:
                 if worker.isRunning():
-                    worker.stop()
-                    worker.wait(1000)  # 最大1秒待機
+                    try:
+                        worker.quit_safely()
+                    except Exception as e:
+                        logger.error(f"ワーカー停止中にエラーが発生: {e}")
+
+            # 全ワーカーのリストをクリア
+            self.workers.clear()
+
+        # matplotlibリソースのクリーンアップ
+        try:
+            self._clear_span_selectors()
+            if hasattr(self, "figure"):
+                plt.close(self.figure)
+            plt.close("all")  # 全ての図を閉じる
+            logger.info("matplotlibリソースをクリーンアップしました")
+        except Exception as e:
+            logger.warning(f"matplotlibクリーンアップ中にエラー: {e}")
 
         # 親クラスのcloseEventを呼び出し
         super().closeEvent(event)
