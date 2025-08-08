@@ -38,6 +38,7 @@ class GQualityWorker(QThread):
         config,
         file_index=0,
         total_files=1,
+        filtered_adjusted_time=None,
     ):
         """
         コンストラクタ
@@ -49,11 +50,13 @@ class GQualityWorker(QThread):
             config (dict): 設定情報
             file_index (int, optional): 現在処理中のファイルのインデックス。デフォルトは0。
             total_files (int, optional): 処理する総ファイル数。デフォルトは1。
+            filtered_adjusted_time (pandas.Series, optional): ドラッグシールド用のフィルタリングされた調整時間データ
         """
         super().__init__()
         self.filtered_time = filtered_time
         self.filtered_gravity_level_inner_capsule = filtered_gravity_level_inner_capsule
         self.filtered_gravity_level_drag_shield = filtered_gravity_level_drag_shield
+        self.filtered_adjusted_time = filtered_adjusted_time if filtered_adjusted_time is not None else filtered_time
         self.config = config
         self.file_index = file_index
         self.total_files = total_files
@@ -66,7 +69,26 @@ class GQualityWorker(QThread):
         Returns:
             list: G-quality解析結果
         """
-        return self.g_quality_data
+        return getattr(self, "g_quality_data", [])
+
+    def stop(self):
+        """
+        ワーカーの実行を安全に停止する
+        """
+        logger.info("G-quality解析の停止要求を受信")
+        self.is_running = False
+
+    def quit_safely(self):
+        """
+        スレッドを安全に終了する
+        """
+        self.stop()
+        self.quit()
+        if not self.wait(2000):  # 2秒待機
+            logger.warning("ワーカースレッドの正常終了がタイムアウトしました")
+            self.terminate()
+            if not self.wait(1000):  # さらに1秒待機
+                logger.error("ワーカースレッドの強制終了に失敗しました")
 
     def run(self):
         """
@@ -76,6 +98,17 @@ class GQualityWorker(QThread):
         結果をリストとして返します。進捗状況は進捗シグナルを通じて通知します。
         """
         try:
+            # データサイズの事前チェック
+            data_length_inner = len(self.filtered_gravity_level_inner_capsule)
+            data_length_drag = len(self.filtered_gravity_level_drag_shield)
+            min_data_length = min(data_length_inner, data_length_drag)
+            sampling_rate = self.config.get("sampling_rate", 1000)
+
+            logger.info(
+                f"G-quality解析開始: inner_capsule={data_length_inner}, "
+                f"drag_shield={data_length_drag}, sampling_rate={sampling_rate}"
+            )
+
             g_quality_data = []
             # 設定から開始サイズ、終了サイズ、ステップサイズを取得してウィンドウサイズの配列を生成
             window_sizes = np.arange(
@@ -84,6 +117,18 @@ class GQualityWorker(QThread):
                 self.config["g_quality_step"],
             )
             total_steps = len(window_sizes)
+
+            # データが最小ウィンドウサイズにも満たない場合の警告
+            min_window_samples = int(self.config["g_quality_start"] * sampling_rate)
+            if min_data_length < min_window_samples:
+                logger.warning(
+                    f"データ長 ({min_data_length}) が最小ウィンドウサイズ ({min_window_samples} samples) "
+                    f"より小さいため、G-quality解析をスキップします"
+                )
+                self.status_update.emit("データが不十分なため、G-quality解析をスキップしました")
+                self.g_quality_data = []
+                self.finished.emit([])
+                return
 
             # 全体の進捗を更新
             self.overall_progress.emit(self.file_index, self.total_files)
@@ -118,7 +163,7 @@ class GQualityWorker(QThread):
                     )
                     min_mean_drag_shield, min_time_drag_shield, min_std_drag_shield = calculate_statistics(
                         self.filtered_gravity_level_drag_shield,
-                        self.filtered_time,
+                        self.filtered_adjusted_time,
                         {
                             "window_size": window_size,
                             "sampling_rate": self.config["sampling_rate"],
@@ -156,10 +201,19 @@ class GQualityWorker(QThread):
             # 結果をインスタンス変数に保存（get_resultsメソッドで取得できるようにする）
             self.g_quality_data = g_quality_data
 
-            # 状態を更新
-            self.status_update.emit(f"G-quality解析が完了しました ({self.file_index + 1}/{self.total_files})")
+            # 有効なデータが存在しない場合の処理
+            if not g_quality_data:
+                logger.warning(
+                    f"すべてのウィンドウサイズで有効な統計が計算できませんでした。"
+                    f"データ長: inner={data_length_inner}, drag={data_length_drag}"
+                )
+                self.status_update.emit("有効な統計データが得られませんでした")
+            else:
+                logger.info(f"G-quality解析完了: {len(g_quality_data)}個の有効なデータポイントを生成")
+                # 状態を更新
+                self.status_update.emit(f"G-quality解析が完了しました ({self.file_index + 1}/{self.total_files})")
 
-            # 解析完了時に結果を送信
+            # 解析完了時に結果を送信（空のリストでも送信）
             self.finished.emit(g_quality_data)
 
         except Exception as e:
@@ -169,11 +223,4 @@ class GQualityWorker(QThread):
             self.g_quality_data = []
             self.finished.emit([])  # 空リストを返す
 
-    def stop(self):
-        """
-        スレッドの実行を中止する
-
-        実行中のスレッドを安全に停止させるためのフラグを設定します。
-        """
-        self.is_running = False
         self.status_update.emit("処理をキャンセルしました")
