@@ -130,6 +130,11 @@ def load_and_process_data(file_path: str, config: dict[str, Any]) -> tuple[pd.Se
         acceleration_inner_capsule = data[acceleration_inner_column]
         acceleration_drag_shield = data[acceleration_drag_column]
 
+        # Inner加速度計の上下反転補正
+        if config.get("invert_inner_acceleration", False):
+            logger.info("Inner加速度計の上下反転補正を適用します")
+            acceleration_inner_capsule = -acceleration_inner_capsule
+
         # 加速度の閾値（デフォルト1m/s^2）を設定
         acceleration_threshold = config.get("acceleration_threshold", 1.0)
         logger.debug(f"加速度閾値: {acceleration_threshold}")
