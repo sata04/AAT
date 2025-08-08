@@ -1,6 +1,6 @@
 [project]
 name = "AAT"
-version = "9.2.0"
+version = "9.3.0"
 description = "Acceleration Analysis Tool for microgravity experiments"
 authors = [
     {name = "AAT Development Team"}

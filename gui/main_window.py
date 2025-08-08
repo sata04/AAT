@@ -1082,11 +1082,9 @@ class MainWindow(QMainWindow):
 
         ax.set_ylim(config["ylim_min"], config["ylim_max"])
 
-        # x軸の範囲を設定（デフォルト1.45秒、データがそれより短い場合はデータの最大値まで）
+        # x軸の範囲を設定（デフォルト1.45秒で固定、グラフサイズを統一）
         default_duration = config.get("default_graph_duration", 1.45)
-        max_time = max(time.max(), adjusted_time.max())
-        x_limit = min(default_duration, max_time) if max_time < default_duration else default_duration
-        ax.set_xlim(0, x_limit)
+        ax.set_xlim(0, default_duration)
 
         ax.set_title(f"The Gravity Level {file_name_without_ext}")
         ax.set_xlabel("Time (s)")
@@ -1094,11 +1092,11 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v9.2.0を追加
+        # グラフの右下にAAT-v9.3.0を追加
         ax.text(
             0.98,
             0.02,
-            "AAT-v9.2.0",
+            "AAT-v9.3.0",
             transform=ax.transAxes,
             fontsize=8,
             verticalalignment="bottom",
@@ -1127,6 +1125,54 @@ class MainWindow(QMainWindow):
         if not original_file_path:
             logger.warning("original_file_pathが空です。グラフを保存できません。")
             return None
+
+        # エクスポート用の設定を取得
+        export_width = config.get("export_figure_width", 10)
+        export_height = config.get("export_figure_height", 6)
+        export_dpi = config.get("export_dpi", 300)
+        export_bbox = config.get("export_bbox_inches", None)
+        bbox_inches = "tight" if export_bbox == "tight" else None
+
+        # エクスポート用のfigureを作成
+        export_fig = plt.figure(figsize=(export_width, export_height))
+        export_ax = export_fig.add_subplot(111)
+
+        # グラフを再描画（エクスポート用）
+        export_ax.plot(
+            time,
+            gravity_level_inner_capsule,
+            label=f"{file_name_without_ext} (Inner Capsule)",
+            linewidth=0.8,
+        )
+        export_ax.plot(
+            adjusted_time,
+            gravity_level_drag_shield,
+            label=f"{file_name_without_ext} (Drag Shield)",
+            linewidth=0.8,
+        )
+
+        export_ax.set_ylim(config["ylim_min"], config["ylim_max"])
+        export_ax.set_xlim(0, config.get("default_graph_duration", 1.45))
+        export_ax.set_title(f"The Gravity Level {file_name_without_ext}")
+        export_ax.set_xlabel("Time (s)")
+        export_ax.set_ylabel("Gravity Level (G)")
+        export_ax.legend()
+        export_ax.grid(True)
+
+        # グラフの右下にAAT-v9.3.0を追加
+        export_ax.text(
+            0.98,
+            0.02,
+            "AAT-v9.3.0",
+            transform=export_ax.transAxes,
+            fontsize=8,
+            verticalalignment="bottom",
+            horizontalalignment="right",
+        )
+
+        export_fig.tight_layout()
+
+        # グラフを保存
         csv_dir = os.path.dirname(original_file_path)
         logger.debug(f"CSV directory: {csv_dir}")
         logger.debug(f"Original file path: {original_file_path}")
@@ -1134,8 +1180,12 @@ class MainWindow(QMainWindow):
         logger.debug(f"Results directory: {results_dir}")
         logger.debug(f"Graphs directory: {graphs_dir}")
         graph_path = os.path.join(graphs_dir, f"{file_name_without_ext}_gl.png")
-        self.figure.savefig(graph_path, dpi=300, bbox_inches="tight")
-        logger.info(f"グラフを保存しました: {graph_path}")
+        export_fig.savefig(graph_path, dpi=export_dpi, bbox_inches=bbox_inches)
+        logger.info(f"グラフを保存しました: {graph_path} (サイズ: {export_width}x{export_height}, DPI: {export_dpi})")
+
+        # エクスポート用figureをクローズ
+        plt.close(export_fig)
+
         return graph_path
 
     def plot_comparison(self):
@@ -1230,25 +1280,18 @@ class MainWindow(QMainWindow):
             ax.set_ylabel("Gravity Level (G)")
             if not self.is_showing_all_data:
                 ax.set_ylim(self.config["ylim_min"], self.config["ylim_max"])
-                # 比較モードでもX軸の範囲を統一（デフォルト1.45秒）
+                # 比較モードでもX軸の範囲を統一（デフォルト1.45秒で固定）
                 default_duration = self.config.get("default_graph_duration", 1.45)
-                # 全データセットの最大時間を確認
-                max_time_all = 0
-                for data in self.processed_data.values():
-                    if "filtered_time" in data and "filtered_adjusted_time" in data:
-                        max_time = max(data["filtered_time"].max(), data["filtered_adjusted_time"].max())
-                        max_time_all = max(max_time_all, max_time)
-                x_limit = min(default_duration, max_time_all) if max_time_all < default_duration else default_duration
-                ax.set_xlim(0, x_limit)
+                ax.set_xlim(0, default_duration)
 
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v9.2.0を追加
+        # グラフの右下にAAT-v9.3.0を追加
         ax.text(
             0.98,
             0.02,
-            "AAT-v9.2.0",
+            "AAT-v9.3.0",
             transform=ax.transAxes,
             fontsize=8,
             verticalalignment="bottom",
@@ -1351,11 +1394,11 @@ class MainWindow(QMainWindow):
 
         self.figure.tight_layout()
 
-        # グラフの右下にAAT-v9.2.0を追加
+        # グラフの右下にAAT-v9.3.0を追加
         ax.text(
             0.98,
             0.02,
-            "AAT-v9.2.0",
+            "AAT-v9.3.0",
             transform=ax.transAxes,
             fontsize=8,
             verticalalignment="bottom",
@@ -1369,7 +1412,69 @@ class MainWindow(QMainWindow):
         # 型チェック: original_file_pathが文字列でなければ終了
         if not isinstance(original_file_path, str) or not original_file_path:
             logger.warning("G-quality: original_file_pathが無効です。グラフを保存できません。")
+            self.canvas.draw()
             return None
+
+        # エクスポート用の設定を取得
+        export_width = self.config.get("export_figure_width", 10)
+        export_height = self.config.get("export_figure_height", 6)
+        export_dpi = self.config.get("export_dpi", 300)
+        export_bbox = self.config.get("export_bbox_inches", None)
+        bbox_inches = "tight" if export_bbox == "tight" else None
+
+        # エクスポート用のfigureを作成
+        export_fig = plt.figure(figsize=(export_width, export_height))
+        export_ax = export_fig.add_subplot(111)
+
+        # グラフを再描画（エクスポート用）
+        export_ax.plot(
+            window_sizes,
+            min_means_inner_capsule,
+            color="darkblue",
+            label="Inner Capsule: Mean Gravity Level",
+        )
+        export_ax.plot(
+            window_sizes,
+            min_means_drag_shield,
+            color="red",
+            label="Drag Shield: Mean Gravity Level",
+        )
+        export_ax.set_xlabel("Window Size (s)")
+        export_ax.set_ylabel("Mean Gravity Level (G)")
+
+        export_ax2 = export_ax.twinx()
+        export_ax2.plot(
+            window_sizes,
+            min_stds_inner_capsule,
+            color="dodgerblue",
+            label="Inner Capsule: Standard Deviation",
+        )
+        export_ax2.plot(
+            window_sizes,
+            min_stds_drag_shield,
+            color="violet",
+            label="Drag Shield: Standard Deviation",
+        )
+        export_ax2.set_ylabel("Standard Deviation (G)")
+
+        export_ax.set_title(f"G-quality Analysis - {file_name}")
+        export_ax.grid(True)
+        export_ax.legend(loc="upper left")
+        export_ax2.legend(loc="upper right")
+
+        # グラフの右下にAAT-v9.3.0を追加
+        export_ax.text(
+            0.98,
+            0.02,
+            "AAT-v9.3.0",
+            transform=export_ax.transAxes,
+            fontsize=8,
+            verticalalignment="bottom",
+            horizontalalignment="right",
+        )
+
+        export_fig.tight_layout()
+
         # 出力ディレクトリ構造を作成（export.pyと同じロジック）
         from core.export import create_output_directories
 
@@ -1380,8 +1485,14 @@ class MainWindow(QMainWindow):
         logger.debug(f"G-quality: Results directory: {results_dir}")
         logger.debug(f"G-quality: Graphs directory: {graphs_dir}")
         graph_path = os.path.join(graphs_dir, f"{file_name}_gq.png")
-        self.figure.savefig(graph_path, dpi=300, bbox_inches="tight")
-        logger.info(f"G-qualityグラフを保存しました: {graph_path}")
+        export_fig.savefig(graph_path, dpi=export_dpi, bbox_inches=bbox_inches)
+        logger.info(
+            f"G-qualityグラフを保存しました: {graph_path} (サイズ: {export_width}x{export_height}, DPI: {export_dpi})"
+        )
+
+        # エクスポート用figureをクローズ
+        plt.close(export_fig)
+
         self.canvas.draw()
         return graph_path
 
@@ -1439,11 +1550,11 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v9.2.0を追加
+        # グラフの右下にAAT-v9.3.0を追加
         ax.text(
             0.98,
             0.02,
-            "AAT-v9.2.0",
+            "AAT-v9.3.0",
             transform=ax.transAxes,
             fontsize=8,
             verticalalignment="bottom",

@@ -7,6 +7,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [9.3.0] - 2025-08-08
+
+### Changed
+- デフォルト設定でのInner Capsule加速度反転オプション (`invert_inner_acceleration`) を `true` に変更
+  - より直感的な加速度データ表示を実現
+  - 既存の解析結果との一貫性を向上
+- エクスポート機能の設定オプションを追加
+  - 図表の幅・高さ設定 (`export_figure_width`, `export_figure_height`)
+  - DPI設定 (`export_dpi`)
+
+### Fixed
+- デフォルト設定ファイルの一貫性を改善
+- 設定値の検証とエラーハンドリングを強化
+
+### Technical Changes
+- アプリケーションバージョンを9.2.0から9.3.0に更新
+- キャッシュシステムのバージョン管理により、設定変更に伴う自動再計算を実現
+
 ## [9.2.0] - 2025-08-08
 
 ### Added
@@ -82,7 +100,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 詳細な変更内容については、各リリースのGitHubリリースページを参照してください。
 
-[Unreleased]: https://github.com/sata04/AAT/compare/v9.2.0...HEAD
+[Unreleased]: https://github.com/sata04/AAT/compare/v9.3.0...HEAD
+[9.3.0]: https://github.com/sata04/AAT/compare/v9.2.0...v9.3.0
 [9.2.0]: https://github.com/sata04/AAT/compare/v9.1.0...v9.2.0
 [9.1.0]: https://github.com/sata04/AAT/compare/v9.0.0...v9.1.0
 [9.0.0]: https://github.com/sata04/AAT/releases/tag/v9.0.0
