@@ -1089,11 +1089,11 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v9.1.0を追加
+        # グラフの右下にAAT-v9.2.0を追加
         ax.text(
             0.98,
             0.02,
-            "AAT-v9.1.0",
+            "AAT-v9.2.0",
             transform=ax.transAxes,
             fontsize=8,
             verticalalignment="bottom",
@@ -1239,11 +1239,11 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v9.1.0を追加
+        # グラフの右下にAAT-v9.2.0を追加
         ax.text(
             0.98,
             0.02,
-            "AAT-v9.1.0",
+            "AAT-v9.2.0",
             transform=ax.transAxes,
             fontsize=8,
             verticalalignment="bottom",
@@ -1346,11 +1346,11 @@ class MainWindow(QMainWindow):
 
         self.figure.tight_layout()
 
-        # グラフの右下にAAT-v9.1.0を追加
+        # グラフの右下にAAT-v9.2.0を追加
         ax.text(
             0.98,
             0.02,
-            "AAT-v9.1.0",
+            "AAT-v9.2.0",
             transform=ax.transAxes,
             fontsize=8,
             verticalalignment="bottom",
@@ -1434,11 +1434,11 @@ class MainWindow(QMainWindow):
         ax.legend()
         ax.grid(True)
 
-        # グラフの右下にAAT-v9.1.0を追加
+        # グラフの右下にAAT-v9.2.0を追加
         ax.text(
             0.98,
             0.02,
-            "AAT-v9.1.0",
+            "AAT-v9.2.0",
             transform=ax.transAxes,
             fontsize=8,
             verticalalignment="bottom",
