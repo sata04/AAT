@@ -6,6 +6,28 @@ authors = [
     {name = "AAT Development Team"}
 ]
 requires-python = ">=3.9"
+dependencies = [
+    "PyQt6",
+    "matplotlib",
+    "numpy",
+    "pandas",
+    "pandas-stubs",
+    "openpyxl",
+    "tables",
+]
+
+[tool.setuptools.packages.find]
+include = ["core", "gui"]
+exclude = ["tests*", "config*"]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "pytest>=7.0.0",
+    "pytest-cov>=4.0.0",
+    "pytest-qt>=4.0.0",
+    "pytest-mock>=3.10.0",
+]
 
 [tool.ruff]
 # Set line length to 120 (more relaxed than Black default)
@@ -73,6 +95,31 @@ docstring-code-format = true
 # Set docstring code line length to dynamic
 docstring-code-line-length = "dynamic"
 
+[dependency-groups]
+dev = [
+    "ruff>=0.12.3",
+]
+
 [tool.ruff.lint.isort]
 # Configure import sorting
 known-first-party = ["core", "gui"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+addopts = [
+    "-v",
+    "--strict-markers",
+    "--tb=short",
+    "--cov=core",
+    "--cov=gui",
+    "--cov-report=term-missing",
+    "--cov-report=html:htmlcov",
+]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "gui: marks tests that require GUI (Qt) functionality",
+]
+qt_api = "pyqt6"
