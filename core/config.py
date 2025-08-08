@@ -67,6 +67,7 @@ def load_config() -> dict[str, Any]:
             "auto_calculate_g_quality": True,
             "use_cache": True,
             "default_graph_duration": 1.45,
+            "invert_inner_acceleration": False,
             "app_version": APP_VERSION,
         }
     except json.JSONDecodeError as e:

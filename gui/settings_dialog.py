@@ -85,6 +85,11 @@ class SettingsDialog(QDialog):
         self.gravity_constant.setValue(self.config["gravity_constant"])
         form_layout1.addRow("重力定数 (m/s²):", self.gravity_constant)
 
+        # Inner加速度計の上下反転補正
+        self.invert_inner_acceleration = QCheckBox()
+        self.invert_inner_acceleration.setChecked(self.config.get("invert_inner_acceleration", False))
+        form_layout1.addRow("Inner加速度計の上下反転補正:", self.invert_inner_acceleration)
+
         # パフォーマンス設定グループ
         perf_group = QGroupBox("パフォーマンス設定")
         perf_layout = QFormLayout(perf_group)
@@ -251,6 +256,7 @@ class SettingsDialog(QDialog):
             "use_cache": self.use_cache.isChecked(),
             "auto_calculate_g_quality": self.auto_calculate_g_quality.isChecked(),
             "default_graph_duration": self.default_graph_duration.value(),
+            "invert_inner_acceleration": self.invert_inner_acceleration.isChecked(),
         }
 
         logger.debug(f"設定変更: {settings}")

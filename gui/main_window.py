@@ -197,6 +197,11 @@ class MainWindow(QMainWindow):
         settings_button.clicked.connect(self.open_settings)
         button_layout.addWidget(settings_button)
 
+        # キャッシュクリアボタン
+        clear_cache_button = QPushButton("キャッシュクリア")
+        clear_cache_button.clicked.connect(self.clear_cache)
+        button_layout.addWidget(clear_cache_button)
+
         self.main_layout.addLayout(button_layout)
 
         # グラフとテーブルを含むスプリッターの設定
@@ -1758,6 +1763,57 @@ class MainWindow(QMainWindow):
             self.config.update(new_settings)
             save_config(self.config)
             QMessageBox.information(self, "設定保存", "設定が保存されました。")
+
+    def clear_cache(self):
+        """
+        キャッシュをクリアする
+        """
+        # ユーザーに確認
+        reply = QMessageBox.question(
+            self,
+            "キャッシュクリア",
+            "全てのキャッシュファイルを削除しますか？\nこの操作は取り消せません。",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+
+        if reply == QMessageBox.StandardButton.Yes:
+            try:
+                # 全ての処理済みデータのキャッシュディレクトリを探す
+                cache_dirs_found = []
+
+                # 現在開いているファイルからキャッシュディレクトリを特定
+                for file_name in self.processed_data:
+                    if hasattr(self, "file_paths") and file_name in self.file_paths:
+                        file_path = self.file_paths[file_name]
+                        csv_dir = os.path.dirname(file_path)
+                        cache_dir = os.path.join(csv_dir, "results_AAT", "cache")
+                        if os.path.exists(cache_dir) and cache_dir not in cache_dirs_found:
+                            cache_dirs_found.append(cache_dir)
+
+                # キャッシュファイルを削除
+                total_deleted = 0
+                for cache_dir in cache_dirs_found:
+                    try:
+                        for filename in os.listdir(cache_dir):
+                            if filename.endswith((".pickle", ".h5")):
+                                file_path = os.path.join(cache_dir, filename)
+                                os.remove(file_path)
+                                total_deleted += 1
+                                logger.debug(f"キャッシュファイルを削除: {filename}")
+                    except Exception as e:
+                        logger.warning(f"キャッシュディレクトリのクリア中にエラー: {e}")
+
+                if total_deleted > 0:
+                    QMessageBox.information(
+                        self, "キャッシュクリア完了", f"{total_deleted}個のキャッシュファイルを削除しました。"
+                    )
+                    logger.info(f"キャッシュクリア完了: {total_deleted}ファイル削除")
+                else:
+                    QMessageBox.information(self, "キャッシュクリア", "削除するキャッシュファイルがありませんでした。")
+
+            except Exception as e:
+                log_exception(e, "キャッシュクリア中にエラーが発生")
+                QMessageBox.critical(self, "エラー", f"キャッシュクリア中にエラーが発生しました:\n{str(e)}")
 
     def closeEvent(self, event):
         """

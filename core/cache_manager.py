@@ -47,6 +47,7 @@ def generate_cache_id(file_path, config):
         "acceleration_threshold",
         "end_gravity_level",
         "min_seconds_after_start",
+        "invert_inner_acceleration",
         "app_version",
     ]
 
@@ -103,6 +104,10 @@ def save_to_cache(processed_data, file_path, cache_id, config):
         bool: 保存に成功した場合はTrue、失敗した場合はFalse
     """
     try:
+        # 新しいキャッシュを保存する前に、同じファイルの古いキャッシュを削除
+        delete_cache(file_path)
+        logger.debug(f"古いキャッシュを削除しました: {os.path.basename(file_path)}")
+
         cache_path = get_cache_path(file_path, cache_id)
 
         # キャッシュメタデータを準備
@@ -122,6 +127,7 @@ def save_to_cache(processed_data, file_path, cache_id, config):
                     "acceleration_threshold",
                     "end_gravity_level",
                     "min_seconds_after_start",
+                    "invert_inner_acceleration",
                 ]
             },
         }
@@ -195,7 +201,9 @@ def load_from_cache(file_path, cache_id):
                     logger.debug(f"raw_dataを復元しました: {raw_data_cache_path}")
                 except Exception as e:
                     log_exception(e, "raw_dataの復元中にエラーが発生しました")
-                    # raw_dataの読み込みに失敗しても、他のデータは返す
+                    # raw_dataの読み込みに失敗した場合、データの整合性が保証されないため、キャッシュ全体を無効化
+                    logger.warning("raw_dataの読み込みに失敗したため、キャッシュを無効化します")
+                    return None
 
         # メタデータを削除してデータを返す
         if "_metadata" in data:
