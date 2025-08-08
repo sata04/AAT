@@ -1,4 +1,4 @@
-# 🚀 AAT (Acceleration Analysis Tool) v9.2.0
+# 🚀 AAT (Acceleration Analysis Tool) v9.3.0
 
 > 微小重力環境の実験データを簡単に分析・可視化するためのデスクトップアプリケーション
 

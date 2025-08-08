@@ -19,7 +19,7 @@ from core.logger import get_logger, log_exception
 logger = get_logger("config")
 
 # アプリケーションのバージョン情報
-APP_VERSION: str = "9.2.0"
+APP_VERSION: str = "9.3.0"
 
 
 def load_config() -> dict[str, Any]:
@@ -67,6 +67,10 @@ def load_config() -> dict[str, Any]:
             "auto_calculate_g_quality": True,
             "use_cache": True,
             "default_graph_duration": 1.45,
+            "export_figure_width": 10,
+            "export_figure_height": 6,
+            "export_dpi": 300,
+            "export_bbox_inches": None,
             "invert_inner_acceleration": False,
             "app_version": APP_VERSION,
         }

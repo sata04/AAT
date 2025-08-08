@@ -8,14 +8,17 @@
 
 from PyQt6.QtWidgets import (
     QCheckBox,
+    QComboBox,
     QDialog,
     QDialogButtonBox,
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
     QLineEdit,
+    QScrollArea,
     QSpinBox,
     QVBoxLayout,
+    QWidget,
 )
 
 from core.logger import get_logger
@@ -55,7 +58,16 @@ class SettingsDialog(QDialog):
         """
         ダイアログのレイアウトとウィジェットを初期化する
         """
-        layout = QVBoxLayout(self)
+        # メインレイアウト
+        main_layout = QVBoxLayout(self)
+        
+        # スクロールエリアの作成
+        scroll_area = QScrollArea()
+        scroll_area.setWidgetResizable(True)
+        
+        # スクロールエリア内のコンテンツウィジェット
+        content_widget = QWidget()
+        layout = QVBoxLayout(content_widget)
 
         # データ入力設定グループ
         input_group = QGroupBox("データ入力設定")
@@ -134,6 +146,43 @@ class SettingsDialog(QDialog):
         self.default_graph_duration.setValue(self.config.get("default_graph_duration", 1.45))
         form_layout2.addRow("デフォルトグラフ表示時間 (秒):", self.default_graph_duration)
 
+        # エクスポート設定グループ
+        export_group = QGroupBox("エクスポート設定")
+        form_layout_export = QFormLayout(export_group)
+
+        # エクスポート図の幅
+        self.export_figure_width = QDoubleSpinBox()
+        self.export_figure_width.setRange(1.0, 20.0)
+        self.export_figure_width.setDecimals(1)
+        self.export_figure_width.setSingleStep(0.5)
+        self.export_figure_width.setValue(self.config.get("export_figure_width", 10))
+        form_layout_export.addRow("エクスポート図の幅 (インチ):", self.export_figure_width)
+
+        # エクスポート図の高さ
+        self.export_figure_height = QDoubleSpinBox()
+        self.export_figure_height.setRange(1.0, 20.0)
+        self.export_figure_height.setDecimals(1)
+        self.export_figure_height.setSingleStep(0.5)
+        self.export_figure_height.setValue(self.config.get("export_figure_height", 6))
+        form_layout_export.addRow("エクスポート図の高さ (インチ):", self.export_figure_height)
+
+        # エクスポートDPI
+        self.export_dpi = QSpinBox()
+        self.export_dpi.setRange(72, 600)
+        self.export_dpi.setSingleStep(50)
+        self.export_dpi.setValue(self.config.get("export_dpi", 300))
+        form_layout_export.addRow("エクスポートDPI:", self.export_dpi)
+
+        # エクスポートbbox_inches設定
+        self.export_bbox_inches = QComboBox()
+        self.export_bbox_inches.addItems(["固定サイズ", "タイト (tight)"])
+        bbox_value = self.config.get("export_bbox_inches", None)
+        if bbox_value == "tight":
+            self.export_bbox_inches.setCurrentIndex(1)
+        else:
+            self.export_bbox_inches.setCurrentIndex(0)
+        form_layout_export.addRow("エクスポート境界設定:", self.export_bbox_inches)
+
         # 解析設定グループ
         analysis_group = QGroupBox("解析設定")
         form_layout3 = QFormLayout(analysis_group)
@@ -177,15 +226,22 @@ class SettingsDialog(QDialog):
         # G-quality解析パラメータ
         self._init_g_quality_widgets(form_layout4)
 
-        # 各グループをメインレイアウトに追加
+        # 各グループをコンテンツレイアウトに追加
         layout.addWidget(input_group)
         layout.addWidget(perf_group)
         layout.addWidget(display_group)
+        layout.addWidget(export_group)
         layout.addWidget(analysis_group)
         layout.addWidget(g_quality_group)
+        
+        # スクロールエリアにコンテンツウィジェットを設定
+        scroll_area.setWidget(content_widget)
+        
+        # スクロールエリアをメインレイアウトに追加
+        main_layout.addWidget(scroll_area)
 
-        # ダイアログボタン
-        self._init_buttons(layout)
+        # ダイアログボタン（スクロールエリアの外に配置）
+        self._init_buttons(main_layout)
 
     def _init_g_quality_widgets(self, form_layout):
         """
@@ -223,7 +279,7 @@ class SettingsDialog(QDialog):
         ダイアログのボタンを初期化する
 
         Args:
-            layout (QVBoxLayout): ボタンを追加するレイアウト
+            layout (QVBoxLayout): ボタンを追加するメインレイアウト
         """
         # OKとキャンセルボタン
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
@@ -256,6 +312,10 @@ class SettingsDialog(QDialog):
             "use_cache": self.use_cache.isChecked(),
             "auto_calculate_g_quality": self.auto_calculate_g_quality.isChecked(),
             "default_graph_duration": self.default_graph_duration.value(),
+            "export_figure_width": self.export_figure_width.value(),
+            "export_figure_height": self.export_figure_height.value(),
+            "export_dpi": self.export_dpi.value(),
+            "export_bbox_inches": "tight" if self.export_bbox_inches.currentIndex() == 1 else None,
             "invert_inner_acceleration": self.invert_inner_acceleration.isChecked(),
         }
 

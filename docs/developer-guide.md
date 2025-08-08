@@ -772,18 +772,18 @@ def process_large_file(file_path: str, chunk_size: int = 10000):
 
 ```python
 # core/config.py
-APP_VERSION = "9.2.0"  # Major.Minor.Patch
+APP_VERSION = "9.3.0"  # Major.Minor.Patch
 
 # pyproject.toml
 [project]
-version = "9.2.0"
+version = "9.3.0"
 ```
 
 ### 2. 変更履歴の更新
 
 CHANGELOG.mdに変更内容を記載：
 ```markdown
-## [9.2.0] - 2024-12-XX
+## [9.3.0] - 2024-12-XX
 
 ### Added
 - 新機能の説明
@@ -819,10 +819,10 @@ pyinstaller --onefile --windowed main.py
 
 ```bash
 # タグの作成
-git tag -a v9.2.0 -m "Release version 9.2.0"
+git tag -a v9.3.0 -m "Release version 9.3.0"
 
 # GitHubへプッシュ
-git push origin v9.2.0
+git push origin v9.3.0
 
 # GitHub Releasesでリリースノートを作成
 ```
