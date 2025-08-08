@@ -172,6 +172,17 @@ python --version  # 3.7以上が必要
 
 ## 📚 開発者向け情報
 
+### 📖 詳細ドキュメント
+
+- **[APIリファレンス](docs/api-reference.md)** - コアモジュールの詳細なAPI仕様
+- **[ユーザーマニュアル](docs/user-manual.md)** - 詳細な操作ガイドとトラブルシューティング
+- **[開発者ガイド](docs/developer-guide.md)** - 開発環境構築とコーディング規約
+- **[設計仕様書](docs/design-specification.md)** - システムアーキテクチャと設計思想
+- **[テストガイド](docs/testing-guide.md)** - テスト戦略とテストケース
+- **[デプロイメントガイド](docs/deployment-guide.md)** - パッケージングと配布方法
+- **[変更履歴](CHANGELOG.md)** - 詳細なバージョン履歴
+- **[貢献ガイド](CONTRIBUTING.md)** - プロジェクトへの貢献方法
+
 <details>
 <summary><strong>🏗️ アーキテクチャ</strong></summary>
 
@@ -186,12 +197,17 @@ AAT/
 │   ├── cache_manager.py       # キャッシュ管理
 │   ├── export.py             # エクスポート機能
 │   ├── config.py             # 設定管理
-│   └── logger.py             # ログ機能
-└── gui/                      # ユーザーインターフェース
-    ├── main_window.py        # メインウィンドウ
-    ├── workers.py            # バックグラウンド処理
-    ├── settings_dialog.py    # 設定ダイアログ
-    └── column_selector_dialog.py  # 列選択ダイアログ
+│   ├── logger.py             # ログ機能
+│   └── exceptions.py         # カスタム例外
+├── gui/                      # ユーザーインターフェース
+│   ├── main_window.py        # メインウィンドウ
+│   ├── workers.py            # バックグラウンド処理
+│   ├── settings_dialog.py    # 設定ダイアログ
+│   └── column_selector_dialog.py  # 列選択ダイアログ
+├── docs/                     # プロジェクトドキュメント
+└── config/                   # 設定ファイル
+    ├── config.default.json   # デフォルト設定
+    └── config.json          # ユーザー設定
 ```
 
 ### 設計原則
@@ -207,6 +223,15 @@ AAT/
 ### 開発用依存関係
 ```bash
 pip install -r requirements.txt
+
+# 開発ツールを含む場合
+pip install -e ".[dev]"
+```
+
+### pre-commitフックの設定
+```bash
+pip install pre-commit
+pre-commit install
 ```
 
 ### デバッグモード
@@ -216,6 +241,13 @@ AAT_DEBUG=1 python main.py
 
 # Windows
 set AAT_DEBUG=1 && python main.py
+```
+
+### コード品質チェック
+```bash
+# Ruffでリントとフォーマット
+ruff check .
+ruff format .
 ```
 
 ### テスト実行
