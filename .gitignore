@@ -162,3 +162,17 @@ test_data/
 # Application logs
 AAT.log
 AAT_*.log
+
+# Test coverage reports
+.coverage
+htmlcov/
+.pytest_cache/
+
+# Documentation build artifacts
+docs/_build/
+docs/build/
+
+# Build and distribution artifacts
+build/
+dist/
+*.egg-info/
