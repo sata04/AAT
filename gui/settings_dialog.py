@@ -60,11 +60,11 @@ class SettingsDialog(QDialog):
         """
         # メインレイアウト
         main_layout = QVBoxLayout(self)
-        
+
         # スクロールエリアの作成
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
-        
+
         # スクロールエリア内のコンテンツウィジェット
         content_widget = QWidget()
         layout = QVBoxLayout(content_widget)
@@ -233,10 +233,10 @@ class SettingsDialog(QDialog):
         layout.addWidget(export_group)
         layout.addWidget(analysis_group)
         layout.addWidget(g_quality_group)
-        
+
         # スクロールエリアにコンテンツウィジェットを設定
         scroll_area.setWidget(content_widget)
-        
+
         # スクロールエリアをメインレイアウトに追加
         main_layout.addWidget(scroll_area)
 

@@ -4,108 +4,108 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AAT (Acceleration Analysis Tool) v9.3.0 is a Python desktop application for analyzing experimental data in microgravity environments. It processes acceleration data from Inner Capsule and Drag Shield sensors, calculates gravity levels, and performs statistical analysis to evaluate microgravity quality using a PyQt6 GUI.
+AAT (Acceleration Analysis Tool) v9.3.0 is a Python desktop application for analyzing experimental data in microgravity environments. It processes acceleration data from Inner Capsule and Drag Shield sensors, calculates gravity levels, and performs statistical analysis to evaluate microgravity quality using a PyQt6 GUI with interactive graphing capabilities.
 
 ## Essential Commands
 
 ### Development and Testing
 ```bash
-# Install dependencies
-pip install -r requirements.txt
+# Environment setup with uv (recommended)
+uv venv                              # Create virtual environment
+source .venv/bin/activate            # Activate on macOS/Linux
+# or
+.venv\Scripts\activate               # Activate on Windows
+
+# Install dependencies with uv
+uv pip install -e .                  # Install as editable package
+uv pip install -e ".[dev]"           # Install with dev dependencies
+uv pip sync                          # Sync dependencies from pyproject.toml
+
+# Alternative: Direct pip installation (if not using uv)
+pip install -e .                     # Install as editable package
+pip install -e ".[dev]"              # Install with dev dependencies
 
 # Run the application
-python main.py
+uv run python main.py                # Run with uv (auto-activates venv)
+# or
+python main.py                       # Run directly (requires activated venv)
 
 # Run with debug output (shows all logs)
-AAT_DEBUG=1 python main.py
+AAT_DEBUG=1 uv run python main.py
 
 # Run with verbose output (shows INFO level logs)
-python main.py --verbose
+uv run python main.py --verbose
 # or
-python main.py -v
+uv run python main.py -v
 
 # Set custom log level (DEBUG, INFO, WARNING, ERROR, CRITICAL)
-AAT_LOG_LEVEL=INFO python main.py
+AAT_LOG_LEVEL=INFO uv run python main.py
 
-# Code quality and formatting
-ruff check .                  # Lint all files
-ruff check . --fix            # Lint and auto-fix issues
-ruff format .                 # Format all files
-ruff check . --diff           # Show what would be changed
+# Run tests with uv (when implemented)
+uv run pytest                        # Run all tests
+uv run pytest -v                     # Verbose output
+uv run pytest -m "not slow"          # Skip slow tests
+uv run pytest -m gui                 # Run GUI tests only
+uv run pytest --cov=core --cov=gui   # With coverage report
+
+# Code quality and formatting with uv
+uv run ruff check .                  # Lint all files
+uv run ruff check . --fix            # Lint and auto-fix issues
+uv run ruff format .                 # Format all files
+uv run ruff check . --diff          # Show what would be changed
+
+# Pre-commit hooks (with uv)
+uv run pre-commit install            # Install hooks
+uv run pre-commit run --all-files    # Run all checks manually
 ```
 
-### Dependencies
-The project requires: PyQt6, matplotlib, numpy, pandas, openpyxl, tables, ruff
+### Package Management
+The project uses `pyproject.toml` for dependency management with **uv** as the recommended package manager:
+- **Package Manager**: uv (fast Python package installer and resolver)
+- Core dependencies: PyQt6, matplotlib, numpy, pandas, openpyxl, tables
+- Dev dependencies: ruff, pytest, pytest-cov, pytest-qt, pytest-mock
+- Python requirement: >=3.9
 
-## Development Environment Setup
+**uv benefits**:
+- Fast dependency resolution and installation
+- Automatic virtual environment management
+- Compatible with `pyproject.toml` and pip requirements
+- Integrated tool running with `uv run` command
 
-### Pre-commit Hooks (Recommended)
-To ensure code quality consistency across all team members:
+## Interactive Features
 
-```bash
-# Install pre-commit
-pip install pre-commit
-
-# Install the pre-commit hooks
-pre-commit install
-
-# Run pre-commit hooks on all files (optional)
-pre-commit run --all-files
-```
-
-### VSCode Configuration
-The project includes `.vscode/settings.json` and `.vscode/extensions.json` for consistent development experience:
-
-**Recommended Extensions:**
-- `charliermarsh.ruff` - Ruff linter and formatter
-- `ms-python.python` - Python language support
-- `ms-python.debugpy` - Python debugger
-
-**Extension Installation:**
-VSCode will automatically suggest these extensions when you open the project. You can also install them manually:
-```bash
-# Install Ruff extension (if using VSCode)
-code --install-extension charliermarsh.ruff
-```
-
-**Alternative without Extensions:**
-The project works without VSCode extensions. All code quality checks run via:
-- Pre-commit hooks (before commits)
-- Manual commands (`ruff check .`, `ruff format .`)
-- CI/CD pipeline (GitHub Actions)
-
-### GitHub Actions CI/CD
-The project includes automated code quality checks via GitHub Actions:
-- **Triggers:** Push and pull requests to `main` and `develop` branches
-- **Checks:** Ruff linting and formatting validation
-- **Test:** Basic import validation
-
-### Environment Setup Priority
-1. **Pre-commit hooks** (highest priority - runs before commits)
-2. **GitHub Actions** (CI/CD validation)
-3. **VSCode settings** (editor integration)
-4. **Manual commands** (on-demand checking)
+### Graph Interaction
+- **Mouse Drag Selection**: Click and drag on graphs to select time ranges for detailed analysis
+- **Real-time Statistics**: Selected range statistics update instantly in the status bar
+- **Zoom and Pan**: Interactive navigation of large datasets
+- **Auto-ranging**: Graphs automatically adjust to data bounds
 
 ## Architecture Overview
 
 ### Project Structure
 ```
 AAT/
-├── main.py                     # Application entry point
-├── config.json                 # Runtime configuration 
-├── requirements.txt           
-├── core/                      # Core processing logic
-│   ├── data_processor.py      # CSV loading, column detection, gravity calculation
-│   ├── statistics.py          # Statistical analysis and sliding window calculations
-│   ├── cache_manager.py       # Intelligent data caching system
-│   ├── export.py             # Excel and graph export functionality
-│   ├── config.py             # Configuration management with validation
-│   └── logger.py             # Centralized logging system
-└── gui/                      # User interface layer
-    ├── main_window.py        # Main application window and graph display
-    ├── workers.py            # Background thread workers for G-quality analysis
-    ├── settings_dialog.py    # Configuration interface
-    └── column_selector_dialog.py  # CSV column mapping interface
+├── main.py                          # Application entry point with macOS-specific handling
+├── config.json                      # Runtime configuration (user-specific)
+├── config/
+│   └── config.default.json          # Default configuration template
+├── pyproject.toml                   # Modern Python packaging and dependencies
+├── .pre-commit-config.yaml          # Code quality automation
+├── core/                            # Core processing logic (GUI-agnostic)
+│   ├── data_processor.py            # CSV loading, column detection, gravity calculation
+│   ├── statistics.py                # Statistical analysis and sliding window calculations
+│   ├── cache_manager.py             # Intelligent data caching system (pickle + HDF5)
+│   ├── export.py                    # Excel and graph export functionality
+│   ├── config.py                    # Configuration management with validation
+│   ├── exceptions.py                # Custom exception hierarchy for error handling
+│   └── logger.py                    # Centralized logging with environment control
+├── gui/                             # User interface layer
+│   ├── main_window.py               # Main application window and graph display
+│   ├── workers.py                   # Background thread workers for G-quality analysis
+│   ├── settings_dialog.py           # Configuration interface
+│   └── column_selector_dialog.py    # CSV column mapping interface
+└── docs/
+    └── testing-guide.md             # Comprehensive testing strategy (TDD approach)
 ```
 
 ### Core Architecture Principles
@@ -117,6 +117,11 @@ AAT/
 **Intelligent Caching**: Processed data is cached in `results_AAT/cache/` using pickle and HDF5 formats. Cache invalidation occurs when source files, settings, or app version changes.
 
 **Configuration Management**: JSON-based config with version tracking (`app_version` field) ensures backward compatibility. Default values are defined in `core/config.py:36-60`.
+
+**Error Handling**: Custom exception hierarchy (`core/exceptions.py`) with:
+- Base `AATException` class for all application errors
+- Specific exceptions: `DataProcessingError`, `ColumnNotFoundError`, `SyncPointNotFoundError`
+- Japanese error messages for improved user experience
 
 ### Data Processing Pipeline
 
@@ -138,6 +143,7 @@ Critical settings in `config.json`:
 - `g_quality_start/end/step`: Multi-scale G-quality analysis parameters (0.1-0.5s, 0.05s step)
 - `auto_calculate_g_quality`: Enable automatic G-quality analysis on file load
 - `use_cache`: Enable/disable intelligent caching system
+- `invert_inner_acceleration`: Invert Inner Capsule acceleration data (default: true)
 
 ### Threading and Performance
 
@@ -154,7 +160,21 @@ Critical settings in `config.json`:
 
 **macOS Compatibility**: Special handling for PyQt6 warnings and TSM errors in `main.py:16-24`. Debug mode can be enabled with `AAT_DEBUG=1` environment variable.
 
+**CI/CD Environment**: GitHub Actions workflow includes:
+- X11 libraries for headless GUI testing (xvfb-run)
+- System dependencies: libgl1-mesa-glx, libxkbcommon-x11-0, libxcb-* libraries
+- Ruff version pinned to 0.8.4
+
 **Error Handling**: Comprehensive logging with module-specific loggers. User-friendly error messages separate from detailed debug logs.
+
+### Testing Strategy
+
+**Test Framework**: pytest with pytest-qt for GUI testing (see `docs/testing-guide.md`)
+- Unit tests for core modules (data processing, statistics)
+- Integration tests for GUI components with pytest-qt
+- Coverage targets: 80% overall, 90% for core modules
+
+**Current Status**: Test infrastructure configured but tests not yet implemented. Use `pytest` when tests are added.
 
 ### Development Notes
 
@@ -164,6 +184,8 @@ Critical settings in `config.json`:
 
 **GUI Extensions**: Follow the worker thread pattern for any time-intensive operations. See `GQualityWorker` as reference implementation.
 
+**Custom Exceptions**: Use the exception hierarchy in `core/exceptions.py` for consistent error handling. Create specific exception classes for new error conditions.
+
 **Testing Data**: The application processes real scientific data - validate changes against known reference datasets.
 
 ### Output Structure
@@ -171,19 +193,81 @@ Critical settings in `config.json`:
 Results are saved in `results_AAT/` directory alongside source CSV files:
 ```
 results_AAT/
-├── <filename>.xlsx           # Multi-sheet Excel with data and statistics
-├── cache/                    # Processed data cache
-│   ├── *.pickle             # DataFrame cache files
-│   └── *_raw.h5             # Raw acceleration data cache
+├── <filename>.xlsx                  # Multi-sheet Excel with data and statistics
+├── cache/                           # Processed data cache
+│   ├── *.pickle                    # DataFrame cache files
+│   └── *_raw.h5                    # Raw acceleration data cache
 └── graphs/
-    ├── <filename>_gl.png    # Gravity level graphs
-    └── <filename>_gq.png    # G-quality analysis graphs
+    ├── <filename>_gl.png           # Gravity level graphs
+    └── <filename>_gq.png           # G-quality analysis graphs
 ```
 
 ### Common Development Tasks
+
+**Adding New Dependencies**:
+```bash
+# Add production dependency
+uv pip install <package>
+# Update pyproject.toml manually
+
+# Add development dependency
+uv pip install --dev <package>
+# Update pyproject.toml [project.optional-dependencies.dev]
+```
+
+**Running Development Workflow**:
+```bash
+# Quick test cycle with uv
+uv run python main.py               # Test changes
+uv run ruff check . --fix           # Fix linting issues
+uv run ruff format .                # Format code
+uv run pytest                       # Run tests (when available)
+```
 
 **Adding New Export Formats**: Extend `core/export.py` and update output directory structure in `create_output_directories()`.
 
 **Modifying Analysis Parameters**: Update defaults in `core/config.py` and ensure UI controls in `settings_dialog.py` are synchronized.
 
-**Performance Optimization**: Profile using the existing logging infrastructure. Enable debug mode for detailed timing information.
+**Performance Optimization**: Profile using the existing logging infrastructure. Enable debug mode with `AAT_DEBUG=1 uv run python main.py`.
+
+**Implementing New Column Types**: Update keyword matching in `data_processor.py:detect_columns()` and add corresponding UI in `column_selector_dialog.py`.
+
+**Debugging Issues**: Set `AAT_DEBUG=1` environment variable for comprehensive logging. Check `core/logger.py` for logging configuration.
+
+### Development Environment Setup
+
+**Quick Start with uv**:
+```bash
+# Install uv (if not already installed)
+curl -LsSf https://astral.sh/uv/install.sh | sh  # macOS/Linux
+# or
+pip install uv                                    # Alternative method
+
+# Setup project
+uv venv                              # Create virtual environment
+source .venv/bin/activate            # Activate environment
+uv pip install -e ".[dev]"           # Install all dependencies
+
+# Setup pre-commit hooks
+uv run pre-commit install            # Install hooks
+uv run pre-commit run --all-files    # Test hooks
+```
+
+**VSCode Integration**: Project includes `.vscode/settings.json` and `.vscode/extensions.json` for:
+- Ruff auto-formatting on save
+- Import organization  
+- Recommended extensions: charliermarsh.ruff, ms-python.python, ms-python.debugpy
+- uv support through Python extension
+
+**GitHub Actions CI/CD**: Automated checks on push/PR to main and develop branches:
+- Ruff linting and formatting validation (uses uv for fast installation)
+- Basic import validation
+- Runs in Ubuntu with GUI dependencies for PyQt6
+
+### Troubleshooting Reference
+
+See README.md for detailed troubleshooting guide including:
+- CSV file format requirements and encoding issues
+- Column detection problems and manual selection
+- Cache-related issues and clearing procedures
+- Platform-specific PyQt6 installation problems
