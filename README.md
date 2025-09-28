@@ -48,6 +48,29 @@ python main.py
 2. 分析したいCSVファイルを選択
 3. データが自動的に処理され、グラフが表示されます！
 
+## 🍎 macOSアプリバンドルの作成
+
+PyInstallerを用いたmacOS用`.app`バンドルはリポジトリ同梱のスクリプトで生成できます。
+
+### 前提条件
+
+- macOS (13以降推奨)
+- [uv](https://github.com/astral-sh/uv) がインストール済み
+- Xcode Command Line Tools (`xcode-select --install`) ※`iconutil`を使用します
+
+### ビルド手順
+
+```bash
+uv venv
+source .venv/bin/activate
+uv pip install -e ".[build]"
+python scripts/build_mac_app.py
+```
+
+実行後、`build/dist/AAT.app` が生成されます。既定ではリポジトリ直下の `favicon.ico` や `AATicon.png` を自動的に`.icns`へ変換してバンドルします。別のアイコンを利用したい場合は `--icon path/to/icon.png` のように指定してください (`.ico`/`.png`/`.icns` が利用可能)。
+
+> ℹ️ **ヒント**: macOSアプリバンドル（`AAT.app`）では初回起動時に Matplotlib のフォントキャッシュを `~/Library/Application Support/AAT/matplotlib` に保存し、2回目以降の起動を高速化します。開発中に `python main.py` を直接実行する場合はシステム既定の Matplotlib キャッシュ先が利用されます。`AAT_DEBUG=1` を指定すると起動時間のログを確認できます。
+
 ## 📖 基本的な使い方
 
 ### ステップ1: データファイルの選択

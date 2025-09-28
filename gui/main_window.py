@@ -22,6 +22,7 @@ from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavigationToo
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.widgets import SpanSelector
 from PyQt6.QtCore import QMutex, Qt, QTimer
+from PyQt6.QtGui import QAction
 from PyQt6.QtWidgets import (
     QApplication,
     QComboBox,
@@ -39,7 +40,7 @@ from PyQt6.QtWidgets import (
     QWidget,
 )
 
-from core.config import load_config, save_config
+from core.config import APP_VERSION, load_config, save_config
 from core.data_processor import filter_data, load_and_process_data
 from core.export import create_output_directories, export_data, export_g_quality_data
 from core.logger import get_logger, log_exception
@@ -82,6 +83,7 @@ class MainWindow(QMainWindow):
 
         # UI要素の初期化
         self._setup_ui()
+        self._setup_menus()
 
         # データと状態の初期化
         self._initialize_data()
@@ -229,6 +231,32 @@ class MainWindow(QMainWindow):
 
         # 範囲選択機能の変数を初期化
         self.span_selectors = []
+
+    def _setup_menus(self):
+        """メニューバーを設定する"""
+        menubar = self.menuBar()
+        if menubar is None:
+            return
+
+        if sys.platform == "darwin":
+            menubar.setNativeMenuBar(True)
+
+        help_menu = menubar.addMenu("ヘルプ")
+        if help_menu is None:
+            return
+
+        about_action = QAction("AAT について", self)
+        about_action.triggered.connect(self._show_about_dialog)
+        help_menu.addAction(about_action)
+
+    def _show_about_dialog(self):
+        """バージョン情報ダイアログを表示する"""
+        message = (
+            f"<b>Acceleration Analysis Tool (AAT)</b><br>"
+            f"バージョン: {APP_VERSION}<br>"
+            "微小重力環境下での実験データ分析を支援する PyQt6 アプリケーションです。"
+        )
+        QMessageBox.about(self, "AAT について", message)
 
     def _initialize_data(self):
         """

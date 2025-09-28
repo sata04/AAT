@@ -7,7 +7,9 @@
 """
 
 import json
+import os
 import shutil
+import sys
 from pathlib import Path
 from typing import Any
 
@@ -22,6 +24,25 @@ logger = get_logger("config")
 APP_VERSION: str = "9.3.0"
 
 
+def _get_app_root() -> Path:
+    if getattr(sys, "frozen", False) and hasattr(sys, "_MEIPASS"):
+        return Path(sys._MEIPASS)  # type: ignore[attr-defined]
+    return Path(__file__).resolve().parent.parent
+
+
+def get_user_config_dir() -> Path:
+    if getattr(sys, "frozen", False):
+        if sys.platform == "darwin":
+            base_dir = Path.home() / "Library" / "Application Support" / "AAT"
+        elif sys.platform == "win32":
+            base_dir = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "AAT"
+        else:
+            base_dir = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "AAT"
+        base_dir.mkdir(parents=True, exist_ok=True)
+        return base_dir
+    return Path(__file__).resolve().parent.parent
+
+
 def load_config() -> dict[str, Any]:
     """
     設定ファイルを読み込む
@@ -33,9 +54,11 @@ def load_config() -> dict[str, Any]:
     Returns:
         dict: 設定情報を含む辞書
     """
-    script_dir = Path(__file__).resolve().parent.parent
-    default_config_path = script_dir / "config" / "config.default.json"
-    user_config_path = script_dir / "config.json"
+    app_root = _get_app_root()
+    default_config_path = app_root / "config" / "config.default.json"
+
+    user_config_dir = get_user_config_dir()
+    user_config_path = user_config_dir / "config.json"
 
     logger.debug(f"デフォルト設定ファイルのパス: {default_config_path}")
     logger.debug(f"ユーザー設定ファイルのパス: {user_config_path}")
@@ -85,6 +108,7 @@ def load_config() -> dict[str, Any]:
     if not user_config_path.exists():
         logger.info("ユーザー設定ファイルが存在しません。デフォルト設定をコピーします")
         try:
+            user_config_dir.mkdir(parents=True, exist_ok=True)
             shutil.copy2(default_config_path, user_config_path)
             logger.info(f"デフォルト設定をユーザー設定としてコピーしました: {user_config_path}")
         except Exception as e:
@@ -134,9 +158,11 @@ def save_config(config: dict[str, Any]) -> bool:
     Returns:
         bool: 保存に成功した場合はTrue、失敗した場合はFalse
     """
-    script_dir = Path(__file__).resolve().parent.parent
-    config_path = script_dir / "config.json"
-    backup_path = script_dir / "config.json.bak"
+    user_config_dir = get_user_config_dir()
+    config_path = user_config_dir / "config.json"
+    backup_path = user_config_dir / "config.json.bak"
+
+    user_config_dir.mkdir(parents=True, exist_ok=True)
 
     logger.debug(f"設定を保存します: {config}")
 
