@@ -14,6 +14,7 @@ dependencies = [
     "pandas-stubs",
     "openpyxl",
     "tables",
+    "types-openpyxl>=3.1.5.20250919",
 ]
 
 [tool.setuptools.packages.find]
@@ -27,6 +28,10 @@ dev = [
     "pytest-cov>=4.0.0",
     "pytest-qt>=4.0.0",
     "pytest-mock>=3.10.0",
+]
+build = [
+    "pyinstaller>=6.10",
+    "pillow>=10.3",
 ]
 
 [tool.ruff]
@@ -98,6 +103,10 @@ docstring-code-line-length = "dynamic"
 [dependency-groups]
 dev = [
     "ruff>=0.12.3",
+]
+build = [
+    "pyinstaller>=6.10",
+    "pillow>=10.3",
 ]
 
 [tool.ruff.lint.isort]

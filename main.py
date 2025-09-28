@@ -10,8 +10,11 @@ PyQt6ベースのGUIを起動し、CSVデータからの重力レベル分析を
 import os
 import signal
 import sys
+import time
 import traceback
 import warnings
+from pathlib import Path
+from typing import Optional
 
 # macOS特有の警告を抑制
 if sys.platform == "darwin":
@@ -57,11 +60,32 @@ if sys.platform == "darwin":
 
 from PyQt6.QtWidgets import QApplication, QMessageBox
 
+from core.config import get_user_config_dir
 from core.logger import get_logger, log_exception
-from gui.main_window import MainWindow
+
+user_config_dir = get_user_config_dir()
+mpl_config_dir: Optional[Path] = None
+_mpl_config_error: Optional[Exception] = None
+
+if getattr(sys, "frozen", False):
+    mpl_config_dir = user_config_dir / "matplotlib"
+    try:
+        mpl_config_dir.mkdir(parents=True, exist_ok=True)
+        os.environ["MPLCONFIGDIR"] = str(mpl_config_dir)
+    except Exception as exc:  # pragma: no cover
+        _mpl_config_error = exc
 
 # モジュール用のロガーを初期化
 logger = get_logger("main")
+
+if _mpl_config_error:
+    logger.warning("Matplotlib設定ディレクトリの準備に失敗しました: %s", _mpl_config_error)
+elif mpl_config_dir:
+    logger.info("Matplotlib設定ディレクトリ: %s", mpl_config_dir)
+else:
+    logger.info("Matplotlib設定ディレクトリ: システム既定を使用します")
+
+START_TIME = time.perf_counter()
 
 
 def handle_crash(signum, frame):
@@ -100,14 +124,21 @@ def main():
 
         app = QApplication(sys.argv)
 
+        logger.info("QApplication 初期化完了")
+
         # アプリケーション設定
         app.setApplicationName("AAT")
         app.setApplicationVersion("9.3.0")
         app.setOrganizationName("AAT Development Team")
 
+        from gui.main_window import MainWindow
+
         logger.info("MainWindowを作成します")
         main_window = MainWindow()
         main_window.show()
+
+        logger.info("メインウィンドウ表示完了")
+        logger.info("起動準備時間: %.2fs", time.perf_counter() - START_TIME)
 
         logger.info("アプリケーションループを開始します")
         result = app.exec()
