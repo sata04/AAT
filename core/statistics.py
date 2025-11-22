@@ -8,15 +8,14 @@
 また、ユーザーが選択した特定範囲の統計情報も計算します。
 """
 
-from typing import Optional, Union
 
 import numpy as np
 import pandas as pd
 
 
 def calculate_statistics(
-    gravity_level: pd.Series, time: pd.Series, config: dict[str, Union[float, int]]
-) -> tuple[Optional[float], Optional[float], Optional[float]]:
+    gravity_level: pd.Series, time: pd.Series, config: dict[str, float | int]
+) -> tuple[float | None, float | None, float | None]:
     """
     重力レベルデータの統計情報を計算する
 
@@ -42,9 +41,9 @@ def calculate_statistics(
     sampling_rate: int = int(config.get("sampling_rate", 1000))
     window_size_samples: int = int(window_size * sampling_rate)
 
-    std_devs: Union[list[float], np.ndarray] = []
-    means: Union[list[float], np.ndarray] = []
-    times: Union[list[float], np.ndarray] = []
+    std_devs: list[float] | np.ndarray = []
+    means: list[float] | np.ndarray = []
+    times: list[float] | np.ndarray = []
 
     # データ長の一致を確認
     if len(gravity_level) != len(time):
@@ -81,7 +80,7 @@ def calculate_statistics(
     return float(means[min_std_index]), float(times[min_std_index]), float(std_devs[min_std_index])
 
 
-def calculate_range_statistics(data_array: np.ndarray) -> dict[str, Optional[float]]:
+def calculate_range_statistics(data_array: np.ndarray) -> dict[str, float | None]:
     """
     選択された範囲のデータに対して統計情報を計算する
 

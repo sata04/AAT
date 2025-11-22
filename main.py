@@ -14,7 +14,6 @@ import time
 import traceback
 import warnings
 from pathlib import Path
-from typing import Optional
 
 # macOS特有の警告を抑制
 if sys.platform == "darwin":
@@ -65,8 +64,8 @@ from core.logger import get_logger, log_exception
 from core.version import APP_VERSION
 
 user_config_dir = get_user_config_dir()
-mpl_config_dir: Optional[Path] = None
-_mpl_config_error: Optional[Exception] = None
+mpl_config_dir: Path | None = None
+_mpl_config_error: Exception | None = None
 
 if getattr(sys, "frozen", False):
     mpl_config_dir = user_config_dir / "matplotlib"

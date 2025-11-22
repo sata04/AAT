@@ -6,7 +6,7 @@ CSVファイルからのデータ読み込み、列の自動検出、重力レ�
 およびデータのフィルタリング機能を提供します。
 """
 
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
@@ -212,7 +212,7 @@ def load_and_process_data(file_path: str, config: dict[str, Any]) -> tuple[pd.Se
         raise DataLoadError(file_path, "データの読み込みに失敗しました", e) from e
 
 
-def _find_start_indices(time: Optional[pd.Series], adjusted_time: Optional[pd.Series]) -> tuple[int, int]:
+def _find_start_indices(time: pd.Series | None, adjusted_time: pd.Series | None) -> tuple[int, int]:
     """
     時間データから開始インデックスを検出する
 
@@ -250,8 +250,8 @@ def _find_start_indices(time: Optional[pd.Series], adjusted_time: Optional[pd.Se
 
 
 def _find_end_indices(
-    gravity_level_inner_capsule: Optional[pd.Series],
-    gravity_level_drag_shield: Optional[pd.Series],
+    gravity_level_inner_capsule: pd.Series | None,
+    gravity_level_drag_shield: pd.Series | None,
     min_index_inner: int,
     min_index_drag: int,
     end_gravity_level: float,

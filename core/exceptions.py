@@ -6,7 +6,6 @@ AATアプリケーションで使用される特定の例外クラスを定義�
 より詳細なエラー情報とエラーハンドリングを提供します。
 """
 
-from typing import Optional
 
 
 class AATException(Exception):
@@ -16,7 +15,7 @@ class AATException(Exception):
 class DataLoadError(AATException):
     """データ読み込み時のエラー"""
 
-    def __init__(self, file_path: str, message: str, original_error: Optional[Exception] = None):
+    def __init__(self, file_path: str, message: str, original_error: Exception | None = None):
         self.file_path = file_path
         self.original_error = original_error
         super().__init__(f"データ読み込みエラー ({file_path}): {message}")
@@ -35,7 +34,7 @@ class ColumnNotFoundError(DataLoadError):
 class DataProcessingError(AATException):
     """データ処理中のエラー"""
 
-    def __init__(self, message: str, details: Optional[str] = None):
+    def __init__(self, message: str, details: str | None = None):
         self.details = details
         full_message = message
         if details:
@@ -66,7 +65,7 @@ class InsufficientDataError(DataProcessingError):
 class ConfigurationError(AATException):
     """設定関連のエラー"""
 
-    def __init__(self, message: str, config_key: Optional[str] = None):
+    def __init__(self, message: str, config_key: str | None = None):
         self.config_key = config_key
         if config_key:
             message = f"設定エラー [{config_key}]: {message}"
@@ -76,7 +75,7 @@ class ConfigurationError(AATException):
 class ExportError(AATException):
     """データエクスポート時のエラー"""
 
-    def __init__(self, message: str, file_path: Optional[str] = None):
+    def __init__(self, message: str, file_path: str | None = None):
         self.file_path = file_path
         if file_path:
             message = f"エクスポートエラー ({file_path}): {message}"
@@ -86,7 +85,7 @@ class ExportError(AATException):
 class CacheError(AATException):
     """キャッシュ操作時のエラー"""
 
-    def __init__(self, message: str, cache_path: Optional[str] = None):
+    def __init__(self, message: str, cache_path: str | None = None):
         self.cache_path = cache_path
         if cache_path:
             message = f"キャッシュエラー ({cache_path}): {message}"

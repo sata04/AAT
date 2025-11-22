@@ -2,7 +2,7 @@
 
 > 微小重力環境の実験データを簡単に分析・可視化するためのデスクトップアプリケーション
 
-![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)
+![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)
 ![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)
 [![codecov](https://codecov.io/github/sata04/AAT/graph/badge.svg?token=I4FGAIJ6EQ)](https://codecov.io/github/sata04/AAT)
 
@@ -24,7 +24,7 @@ AATは、宇宙環境での微小重力実験データを分析するための�
 
 ### 1. 必要な環境
 
-- **Python 3.9以上**
+- **Python 3.10以上**
 - **オペレーティングシステム**: Windows、macOS、Linux
 
 ### 2. インストール
@@ -188,7 +188,7 @@ python scripts/build_mac_app.py
 pip install -r requirements.txt --force-reinstall
 
 # Python バージョンを確認
-python --version  # 3.9以上が必要
+python --version  # 3.10以上が必要
 ```
 
 **Q: CSVファイルが読み込めない**
