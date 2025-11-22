@@ -8,7 +8,6 @@
 また、ユーザーが選択した特定範囲の統計情報も計算します。
 """
 
-
 import numpy as np
 import pandas as pd
 
