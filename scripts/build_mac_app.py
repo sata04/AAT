@@ -11,12 +11,12 @@ import platform
 import shutil
 import subprocess
 import time
-import tomllib
+from pathlib import Path
 from plistlib import dump as plist_dump
 from plistlib import load as plist_load
-from pathlib import Path
 from tempfile import TemporaryDirectory
 
+import tomllib
 from PIL import Image, ImageSequence
 
 try:
