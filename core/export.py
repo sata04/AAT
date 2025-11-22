@@ -327,15 +327,9 @@ def export_data(
         graph_exists = graph_path is not None and Path(graph_path).exists()
         graph_display_target = new_graph_path if graph_exists else new_graph_path.parent
         graphs_message = (
-            f"- グラフ画像: {graph_display_target}"
-            if graph_exists
-            else f"- グラフ出力フォルダ: {graph_display_target}"
+            f"- グラフ画像: {graph_display_target}" if graph_exists else f"- グラフ出力フォルダ: {graph_display_target}"
         )
-        message = (
-            "保存が完了しました。\n"
-            f"- Gravity Levelデータ: {output_file_path}\n"
-            f"{graphs_message}"
-        )
+        message = f"保存が完了しました。\n- Gravity Levelデータ: {output_file_path}\n{graphs_message}"
         notify_info(message)
 
         return str(output_file_path)
