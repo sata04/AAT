@@ -18,6 +18,7 @@
 ## 概要
 
 このガイドでは、AATアプリケーションを各プラットフォーム向けにビルドし、エンドユーザーに配布する方法について説明します。
+> 注意: 現在のリポジトリにはPyInstaller用の`.spec`ファイルや`requirements.txt`は含まれていません。以下の手順はパッケージングのたたき台として利用し、実際には`pyproject.toml`/`uv.lock`に基づき `uv pip install -e ".[dev]"` で依存関係を用意した上で `pyinstaller` をセットアップしてください。
 
 ### 配布形式
 
@@ -45,15 +46,15 @@ python -m venv build_env
 source build_env/bin/activate  # Windows: build_env\Scripts\activate
 
 # 依存関係のインストール
-pip install -r requirements.txt
-pip install pyinstaller setuptools wheel
+pip install -e ".[dev]"
+pip install pyinstaller setuptools wheel pillow
 ```
 
 ### 2. PyInstallerのインストール
 
 ```bash
 # 最新版のPyInstallerをインストール
-pip install pyinstaller==6.3.0
+pip install pyinstaller>=6.10
 
 # 開発版が必要な場合
 pip install https://github.com/pyinstaller/pyinstaller/archive/develop.zip
@@ -69,7 +70,7 @@ from pathlib import Path
 # ビルド設定
 BUILD_CONFIG = {
     'name': 'AAT',
-    'version': '9.1.0',
+    'version': '10.0.0',
     'description': 'Acceleration Analysis Tool',
     'author': 'AAT Development Team',
     'icon': 'assets/icon.ico' if sys.platform == 'win32' else 'assets/icon.icns',
@@ -116,9 +117,9 @@ a = Analysis(
         ('README.md', '.'),
     ],
     hiddenimports=[
-        'PyQt6.QtCore',
-        'PyQt6.QtGui',
-        'PyQt6.QtWidgets',
+        'PySide6.QtCore',
+        'PySide6.QtGui',
+        'PySide6.QtWidgets',
         'matplotlib.backends.backend_qt5agg',
         'pandas',
         'numpy',
@@ -179,8 +180,8 @@ if sys.platform == 'darwin':
             'CFBundleDisplayName': 'Acceleration Analysis Tool',
             'CFBundleGetInfoString': "AAT - Acceleration Analysis Tool",
             'CFBundleIdentifier': "com.zerogravity.aat",
-            'CFBundleVersion': "9.1.0",
-            'CFBundleShortVersionString': "9.1.0",
+            'CFBundleVersion': "10.0.0",
+            'CFBundleShortVersionString': "10.0.0",
             'NSHighResolutionCapable': True,
             'LSMinimumSystemVersion': '10.15.0',
         },
@@ -239,7 +240,7 @@ python -m venv build_env
 build_env\Scripts\activate
 
 :: 依存関係のインストール
-pip install -r requirements.txt
+pip install -e ".[dev]"
 pip install pyinstaller
 
 :: ビルド実行
@@ -273,7 +274,7 @@ python3 -m venv build_env
 source build_env/bin/activate
 
 # 依存関係のインストール
-pip install -r requirements.txt
+pip install -e ".[dev]"
 pip install pyinstaller
 
 # ビルド実行
@@ -342,7 +343,7 @@ xcrun stapler staple AAT.app
 
 ```bash
 # GPG署名の作成
-gpg --armor --detach-sign AAT-9.1.0-x86_64.AppImage
+gpg --armor --detach-sign AAT-10.0.0-x86_64.AppImage
 ```
 
 ---
@@ -377,7 +378,7 @@ jobs:
     
     - name: Install dependencies
       run: |
-        pip install -r requirements.txt
+        pip install -e ".[dev]"
         pip install pyinstaller
     
     - name: Build application
@@ -401,12 +402,12 @@ jobs:
 ```html
 <!-- download.html -->
 <div class="download-section">
-    <h2>AAT v9.1.0 ダウンロード</h2>
+    <h2>AAT v10.0.0 ダウンロード</h2>
     
     <div class="platform-downloads">
         <div class="windows">
             <h3>Windows</h3>
-            <a href="/downloads/AAT-9.1.0-Windows-x64.zip" class="download-button">
+            <a href="/downloads/AAT-10.0.0-Windows-x64.zip" class="download-button">
                 ダウンロード (ZIP, 95MB)
             </a>
             <p>Windows 10/11 (64-bit)</p>
@@ -414,7 +415,7 @@ jobs:
         
         <div class="macos">
             <h3>macOS</h3>
-            <a href="/downloads/AAT-9.1.0-macOS.dmg" class="download-button">
+            <a href="/downloads/AAT-10.0.0-macOS.dmg" class="download-button">
                 ダウンロード (DMG, 105MB)
             </a>
             <p>macOS 10.15以降</p>
@@ -422,7 +423,7 @@ jobs:
         
         <div class="linux">
             <h3>Linux</h3>
-            <a href="/downloads/AAT-9.1.0-x86_64.AppImage" class="download-button">
+            <a href="/downloads/AAT-10.0.0-x86_64.AppImage" class="download-button">
                 ダウンロード (AppImage, 98MB)
             </a>
             <p>ほとんどのLinuxディストリビューション</p>
@@ -455,7 +456,7 @@ choco install aat
 !include "MUI2.nsh"
 
 Name "AAT - Acceleration Analysis Tool"
-OutFile "AAT-Setup-9.1.0.exe"
+OutFile "AAT-Setup-10.0.0.exe"
 InstallDir "$PROGRAMFILES64\AAT"
 RequestExecutionLevel admin
 
@@ -516,12 +517,12 @@ SectionEnd
 productbuild --distribution distribution.xml \
              --package-path . \
              --resources Resources \
-             AAT-9.1.0-Installer.pkg
+             AAT-10.0.0-Installer.pkg
 
 # 署名
 productsign --sign "Developer ID Installer: Your Name (TEAM_ID)" \
-            AAT-9.1.0-Installer-unsigned.pkg \
-            AAT-9.1.0-Installer.pkg
+            AAT-10.0.0-Installer-unsigned.pkg \
+            AAT-10.0.0-Installer.pkg
 ```
 
 ---
@@ -535,10 +536,10 @@ productsign --sign "Developer ID Installer: Your Name (TEAM_ID)" \
 import requests
 import json
 from packaging import version
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 class UpdateChecker(QThread):
-    update_available = pyqtSignal(str)  # 新バージョン番号
+    update_available = Signal(str)  # 新バージョン番号
     
     GITHUB_API_URL = "https://api.github.com/repos/sata04/AAT/releases/latest"
     
@@ -549,7 +550,7 @@ class UpdateChecker(QThread):
                 data = response.json()
                 latest_version = data['tag_name'].lstrip('v')
                 
-                from core.config import APP_VERSION
+                from core.version import APP_VERSION
                 if version.parse(latest_version) > version.parse(APP_VERSION):
                     self.update_available.emit(latest_version)
         except Exception as e:
@@ -560,7 +561,7 @@ class UpdateChecker(QThread):
 
 ```python
 # gui/update_dialog.py
-from PyQt6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
+from PySide6.QtWidgets import QDialog, QVBoxLayout, QLabel, QPushButton
 
 class UpdateDialog(QDialog):
     def __init__(self, new_version, parent=None):
@@ -636,4 +637,4 @@ AAT.exe --debug  # Windows
 
 このデプロイメントガイドは、AATを様々なプラットフォームで配布するための包括的な手順を提供します。継続的な改善とフィードバックにより、より良い配布プロセスを構築していきます。
 
-最終更新日: 2024年12月
+最終更新日: 2025年11月22日

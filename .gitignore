@@ -132,6 +132,7 @@ dmypy.json
 .vscode/*.code-snippets
 *.code-workspace
 .history/
+.idea/
 .idea/workspace.xml
 
 # Allow .vscode/settings.json and .vscode/extensions.json for team sharing
@@ -145,6 +146,7 @@ config.json
 results_AAT/
 **/cache/
 matplotlib/
+.matplotlib/
 
 # Generated data files in output directories
 *.xlsx

@@ -6,23 +6,42 @@
 重力レベルデータとグラフ、G-quality解析結果を保存します。
 """
 
+from __future__ import annotations
+
 import shutil
+from collections.abc import Callable
 from pathlib import Path
-from typing import Any, Optional
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
-from PyQt6.QtWidgets import QMessageBox
 
 from core.logger import get_logger, log_exception
+from core.paths import ensure_graphs_dir, ensure_results_dir
 
 # モジュール用のロガーを初期化
 logger = get_logger("export")
 
+ConfirmHandler = Callable[[Path], bool]
+NotifyHandler = Callable[[str], None]
 
-def create_output_directories(csv_dir: Optional[str] = None) -> tuple[Path, Path]:
+
+def _default_confirm_overwrite(path: Path) -> bool:
+    logger.warning("上書き確認のハンドラが指定されていないため自動的に上書きします: %s", path)
+    return True
+
+
+def _default_notify_warning(message: str) -> None:
+    logger.warning(message)
+
+
+def _default_notify_info(message: str) -> None:
+    logger.info(message)
+
+
+def create_output_directories(csv_dir: str | None = None) -> tuple[Path, Path]:
     """
     出力用ディレクトリ構造を作成する
 
@@ -35,30 +54,12 @@ def create_output_directories(csv_dir: Optional[str] = None) -> tuple[Path, Path
     Returns:
         tuple: 作成した結果ディレクトリとグラフディレクトリのパス
     """
-    # プロジェクトルートを取得（フォールバック用）
-    script_path = Path(__file__).resolve()
-    project_root = script_path.parent.parent
-    # 基準ディレクトリ: csv_dir が指定されていればCSVファイルのディレクトリを使用し、未指定時はプロジェクトルートをフォールバック
-    base_dir = Path(csv_dir) if csv_dir else project_root
+    logger.debug("create_output_directories called with csv_dir: %s", csv_dir)
 
-    # デバッグ情報を追加
-    logger.debug(f"create_output_directories called with csv_dir: {csv_dir}")
+    results_dir = ensure_results_dir(csv_dir)
+    graphs_dir = ensure_graphs_dir(csv_dir)
 
-    # csv_dirが空文字列や無効な場合の警告
-    if csv_dir is None:
-        logger.warning("csv_dir is None, falling back to project root")
-    elif csv_dir == "":
-        logger.warning("csv_dir is empty string, falling back to project root")
-
-    logger.debug(f"Using base_dir: {base_dir}")
-
-    results_dir = base_dir / "results_AAT"
-    graphs_dir = results_dir / "graphs"
-
-    results_dir.mkdir(parents=True, exist_ok=True)
-    graphs_dir.mkdir(parents=True, exist_ok=True)
-
-    logger.debug(f"Created directories: results={results_dir}, graphs={graphs_dir}")
+    logger.debug("Created directories: results=%s, graphs=%s", results_dir, graphs_dir)
 
     return results_dir, graphs_dir
 
@@ -69,17 +70,21 @@ def export_data(
     gravity_level_inner_capsule: pd.Series,
     gravity_level_drag_shield: pd.Series,
     file_path: str,
-    min_mean_inner_capsule: Optional[float],
-    min_time_inner_capsule: Optional[float],
-    min_std_inner_capsule: Optional[float],
-    min_mean_drag_shield: Optional[float],
-    min_time_drag_shield: Optional[float],
-    min_std_drag_shield: Optional[float],
-    graph_path: Optional[str],
+    min_mean_inner_capsule: float | None,
+    min_time_inner_capsule: float | None,
+    min_std_inner_capsule: float | None,
+    min_mean_drag_shield: float | None,
+    min_time_drag_shield: float | None,
+    min_std_drag_shield: float | None,
+    graph_path: str | None,
     filtered_time: pd.Series,  # フィルタリング済みの時間データを追加  # noqa: ARG001
     filtered_adjusted_time: pd.Series,  # フィルタリング済みの調整時間データを追加  # noqa: ARG001
-    config: Optional[dict[str, Any]] = None,  # 設定パラメータを追加
-    raw_data: Optional[pd.DataFrame] = None,  # 元のCSVデータを追加
+    config: dict[str, Any] | None = None,  # 設定パラメータを追加
+    raw_data: pd.DataFrame | None = None,  # 元のCSVデータを追加
+    *,
+    confirm_overwrite: ConfirmHandler | None = None,
+    notify_warning: NotifyHandler | None = None,
+    notify_info: NotifyHandler | None = None,
 ) -> str:
     """
     処理されたデータとグラフをExcelにエクスポートする
@@ -112,6 +117,10 @@ def export_data(
     Raises:
         ValueError: データのエクスポート中にエラーが発生した場合
     """
+    confirm_overwrite = confirm_overwrite or _default_confirm_overwrite
+    notify_warning = notify_warning or _default_notify_warning
+    notify_info = notify_info or _default_notify_info
+
     # CSVファイルのディレクトリとファイル名を取得
     file_path_obj = Path(file_path)
     csv_dir = str(file_path_obj.parent)
@@ -134,14 +143,7 @@ def export_data(
 
     # 既存ファイルの確認
     if output_file_path.exists():
-        reply = QMessageBox.question(
-            None,
-            "確認",
-            f"出力ファイルが既に存在します:\n{output_file_path}\n上書きしますか？",
-            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-        )
-
-        if reply == QMessageBox.StandardButton.No:
+        if not confirm_overwrite(output_file_path):
             # 新しいファイル名を生成（連番を付加）
             counter = 1
             while (results_dir / f"{base_name}_{counter}.xlsx").exists():
@@ -150,8 +152,22 @@ def export_data(
 
     try:
         # 共通の時間軸を作成
-        start_time = max(time.min(), adjusted_time.min())
-        end_time = min(time.max(), adjusted_time.max())
+        time_ranges = []
+        if time is not None and not time.empty:
+            time_ranges.append((time.min(), time.max()))
+        if adjusted_time is not None and not adjusted_time.empty:
+            time_ranges.append((adjusted_time.min(), adjusted_time.max()))
+
+        if not time_ranges:
+            raise ValueError("エクスポート可能な時間データがありません。")
+
+        start_time = max(range_[0] for range_ in time_ranges)
+        end_time = min(range_[1] for range_ in time_ranges)
+
+        # オーバーラップがない場合は全体範囲を使用
+        if end_time < start_time:
+            start_time = min(range_[0] for range_ in time_ranges)
+            end_time = max(range_[1] for range_ in time_ranges)
 
         # configが指定されていない場合のデフォルト値
         if config is None:
@@ -164,18 +180,27 @@ def export_data(
         # 共通の時間軸を生成
         unified_time = np.arange(start_time, end_time + time_step, time_step)
 
-        # 各データを共通の時間軸に補間
-        interpolated_inner_capsule = np.interp(unified_time, time, gravity_level_inner_capsule)
-        interpolated_drag_shield = np.interp(unified_time, adjusted_time, gravity_level_drag_shield)
-
         # データフレームの作成（統一された時間軸）
-        export_data = pd.DataFrame(
-            {
-                "Time (s)": unified_time,
-                "Gravity Level (Inner Capsule) (G)": interpolated_inner_capsule,
-                "Gravity Level (Drag Shield) (G)": interpolated_drag_shield,
-            }
-        )
+        export_columns = {"Time (s)": unified_time}
+        if (
+            time is not None
+            and not time.empty
+            and gravity_level_inner_capsule is not None
+            and not gravity_level_inner_capsule.empty
+        ):
+            export_columns["Gravity Level (Inner Capsule) (G)"] = np.interp(
+                unified_time, time, gravity_level_inner_capsule
+            )
+        if (
+            adjusted_time is not None
+            and not adjusted_time.empty
+            and gravity_level_drag_shield is not None
+            and not gravity_level_drag_shield.empty
+        ):
+            export_columns["Gravity Level (Drag Shield) (G)"] = np.interp(
+                unified_time, adjusted_time, gravity_level_drag_shield
+            )
+        export_data = pd.DataFrame(export_columns)
 
         # 統計情報のデータフレームを作成
         stats_df = pd.DataFrame(
@@ -208,90 +233,83 @@ def export_data(
                 time_column = config.get("time_column")
                 acceleration_inner_column = config.get("acceleration_column_inner_capsule")
                 acceleration_drag_column = config.get("acceleration_column_drag_shield")
+                use_inner = config.get("use_inner_acceleration", True)
+                use_drag = config.get("use_drag_acceleration", True)
 
                 logger.info(
-                    f"加速度データの処理開始: 時間列={time_column}, 内カプセル加速度列={acceleration_inner_column}, 外カプセル加速度列={acceleration_drag_column}"
+                    "加速度データの処理開始: "
+                    f"時間列={time_column}, 内カプセル加速度列={acceleration_inner_column}, 外カプセル加速度列={acceleration_drag_column}, "
+                    f"_inner使用={use_inner}, _drag使用={use_drag}"
                 )
                 logger.debug(f"元データの列: {raw_data.columns.tolist()}")
 
-                # 必要な列が存在するか確認
-                if all(
-                    col is not None
-                    for col in [
-                        time_column,
-                        acceleration_inner_column,
-                        acceleration_drag_column,
-                    ]
-                ):
-                    column_exist = True
+                if time_column is None:
+                    notify_warning("加速度データの時間列が設定されていないため、エクスポートをスキップします。")
+                    raw_columns_valid = False
+                else:
+                    raw_columns_valid = True
                     missing_cols = []
+                    if time_column not in raw_data.columns:
+                        raw_columns_valid = False
+                        missing_cols.append(f"時間列({time_column})")
+                    if use_inner and acceleration_inner_column and acceleration_inner_column not in raw_data.columns:
+                        raw_columns_valid = False
+                        missing_cols.append(f"内カプセル加速度列({acceleration_inner_column})")
+                    if use_drag and acceleration_drag_column and acceleration_drag_column not in raw_data.columns:
+                        raw_columns_valid = False
+                        missing_cols.append(f"外カプセル加速度列({acceleration_drag_column})")
 
-                    # 列名が実際に存在するか確認
-                    for col, col_name in [
-                        (time_column, "時間列"),
-                        (acceleration_inner_column, "内カプセル加速度列"),
-                        (acceleration_drag_column, "外カプセル加速度列"),
-                    ]:
-                        if col not in raw_data.columns:
-                            column_exist = False
-                            missing_cols.append(f"{col_name}({col})")
+                    if not raw_columns_valid and missing_cols:
+                        logger.warning(f"必要な列が見つかりません: {missing_cols}")
+                        notify_warning(
+                            "必要な列が見つかりません: "
+                            f"\n{', '.join(missing_cols)}\n\n"
+                            "加速度データがシートに追加されません。\n"
+                            "CSVファイルを選択する際、正しい列を選んでください。"
+                        )
 
-                    if column_exist:
-                        try:
-                            # 元のInner CapsuleとDrag Shieldのデータを準備
-                            # 注: 全時間軸上のデータを使用（フィルタリング済みではなく、全データを使用）
-                            orig_time_data = raw_data[time_column].values.astype(float)
-                            orig_inner_accel = raw_data[acceleration_inner_column].values.astype(float)
-                            orig_drag_accel = raw_data[acceleration_drag_column].values.astype(float)
+                if raw_columns_valid:
+                    try:
+                        orig_time_data = raw_data[time_column].values.astype(float)
+                        acceleration_columns: dict[str, np.ndarray] = {}
 
-                            # drag shield用の元時間を同期点で調整
-                            acc_thresh = config.get("acceleration_threshold", 1.0)
-                            sync_mask = np.abs(orig_drag_accel) < acc_thresh
-                            if sync_mask.any():
-                                sync_idx = np.where(sync_mask)[0][0]
-                                orig_adjusted_time = orig_time_data - orig_time_data[sync_idx]
-                            else:
-                                orig_adjusted_time = orig_time_data - orig_time_data[0]
+                        if use_inner and acceleration_inner_column:
+                            acceleration_columns["inner"] = raw_data[acceleration_inner_column].values.astype(float)
+                        if use_drag and acceleration_drag_column:
+                            acceleration_columns["drag"] = raw_data[acceleration_drag_column].values.astype(float)
 
-                            # 共通の時間軸に合わせて加速度データを補間
-                            inner_accel_interp = np.interp(unified_time, orig_time_data, orig_inner_accel)
-                            drag_accel_interp = np.interp(unified_time, orig_adjusted_time, orig_drag_accel)
-                            acceleration_data = pd.DataFrame(
-                                {
-                                    "Time (s)": unified_time,
-                                    "Acceleration (Inner Capsule) (m/s²)": inner_accel_interp,
-                                    "Acceleration (Drag Shield) (m/s²)": drag_accel_interp,
-                                }
+                        if not acceleration_columns:
+                            logger.info(
+                                "有効な加速度列が選択されていないため、加速度データのエクスポートをスキップします"
                             )
+                        else:
+                            orig_adjusted_time = orig_time_data
+                            if "drag" in acceleration_columns:
+                                acc_thresh = config.get("acceleration_threshold", 1.0)
+                                sync_mask = np.abs(acceleration_columns["drag"]) < acc_thresh
+                                if sync_mask.any():
+                                    sync_idx = np.where(sync_mask)[0][0]
+                                    orig_adjusted_time = orig_time_data - orig_time_data[sync_idx]
+                                else:
+                                    orig_adjusted_time = orig_time_data - orig_time_data[0]
+
+                            accel_frame = {"Time (s)": unified_time}
+                            if "inner" in acceleration_columns:
+                                accel_frame["Acceleration (Inner Capsule) (m/s²)"] = np.interp(
+                                    unified_time, orig_time_data, acceleration_columns["inner"]
+                                )
+                            if "drag" in acceleration_columns:
+                                accel_frame["Acceleration (Drag Shield) (m/s²)"] = np.interp(
+                                    unified_time, orig_adjusted_time, acceleration_columns["drag"]
+                                )
+
+                            acceleration_data = pd.DataFrame(accel_frame)
                             logger.info(f"共通時間軸で加速度データを作成: {len(acceleration_data)}行")
 
-                        except Exception as e:
-                            logger.error(f"加速度データの作成中にエラー: {e}")
-                            acceleration_data = None
-                    else:
-                        logger.warning(f"必要な列が見つかりません: {missing_cols}")
-                        # 列選択ダイアログで選択された列がraw_dataに存在しない場合の対応
-                        QMessageBox.warning(
-                            None,
-                            "列が見つかりません",
-                            f"必要な列が見つかりません: \n{', '.join(missing_cols)}\n\n"
-                            + "加速度データがシートに追加されません。\n"
-                            + "CSVファイルを選択する際、正しい列を選んでください。",
-                        )
-                else:
-                    logger.warning(
-                        "設定に必要な列名が定義されていません。"
-                        + f"時間列={time_column}, "
-                        + f"内カプセル加速度列={acceleration_inner_column}, "
-                        + f"外カプセル加速度列={acceleration_drag_column}"
-                    )
-                    # 設定に列名が定義されていない場合の対応
-                    QMessageBox.warning(
-                        None,
-                        "設定エラー",
-                        "加速度データの列情報が設定されていません。\n"
-                        + "CSVファイルを再度選択して、必要な列を指定してください。",
-                    )
+                    except Exception as e:
+                        log_exception(e, "加速度データのエクスポート中にエラーが発生しました")
+                        notify_warning(f"加速度データの保存中にエラーが発生しました: {e}")
+                        acceleration_data = None
             except Exception as e:
                 log_exception(e, "加速度データの準備中にエラーが発生しました")
                 acceleration_data = None
@@ -306,10 +324,19 @@ def export_data(
             else:
                 logger.warning("加速度データが作成されなかったため、シートに追加されません")
 
-        # 保存完了メッセージ - フォルダ名だけを表示するように変更
-        graphs_folder = new_graph_path.parent.name
-        message = f"Gravity Levelデータが {output_file_path} に保存されました\nグラフは {graphs_folder} フォルダに保存されました"
-        QMessageBox.information(None, "保存完了", message)
+        graph_exists = graph_path is not None and Path(graph_path).exists()
+        graph_display_target = new_graph_path if graph_exists else new_graph_path.parent
+        graphs_message = (
+            f"- グラフ画像: {graph_display_target}"
+            if graph_exists
+            else f"- グラフ出力フォルダ: {graph_display_target}"
+        )
+        message = (
+            "保存が完了しました。\n"
+            f"- Gravity Levelデータ: {output_file_path}\n"
+            f"{graphs_message}"
+        )
+        notify_info(message)
 
         return str(output_file_path)
     except PermissionError as e:

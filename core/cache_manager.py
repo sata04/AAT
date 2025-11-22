@@ -16,8 +16,9 @@ from pathlib import Path
 
 import pandas as pd
 
-from core.config import APP_VERSION
 from core.logger import get_logger, log_exception
+from core.paths import ensure_cache_dir, resolve_base_dir
+from core.version import APP_VERSION
 
 # ロガーの初期化
 logger = get_logger("cache_manager")
@@ -42,6 +43,8 @@ def generate_cache_id(file_path, config):
         "time_column",
         "acceleration_column_inner_capsule",
         "acceleration_column_drag_shield",
+        "use_inner_acceleration",
+        "use_drag_acceleration",
         "sampling_rate",
         "gravity_constant",
         "acceleration_threshold",
@@ -80,8 +83,7 @@ def get_cache_path(file_path, cache_id):
     base_name = os.path.splitext(os.path.basename(file_path))[0]
 
     # キャッシュディレクトリのパスを生成
-    cache_dir = os.path.join(csv_dir, "results_AAT", "cache")
-    os.makedirs(cache_dir, exist_ok=True)
+    cache_dir = ensure_cache_dir(csv_dir)
 
     # キャッシュファイルのパスを生成
     cache_file = f"{base_name}_{cache_id}.pickle"
@@ -122,6 +124,8 @@ def save_to_cache(processed_data, file_path, cache_id, config):
                     "time_column",
                     "acceleration_column_inner_capsule",
                     "acceleration_column_drag_shield",
+                    "use_inner_acceleration",
+                    "use_drag_acceleration",
                     "sampling_rate",
                     "gravity_constant",
                     "acceleration_threshold",
@@ -230,10 +234,10 @@ def delete_cache(file_path, cache_id=None):
     try:
         csv_dir = os.path.dirname(file_path)
         base_name = os.path.splitext(os.path.basename(file_path))[0]
-        cache_dir = os.path.join(csv_dir, "results_AAT", "cache")
+        cache_dir = resolve_base_dir(csv_dir) / "results_AAT" / "cache"
 
         # キャッシュディレクトリが存在するか確認
-        if not os.path.exists(cache_dir):
+        if not cache_dir.exists():
             logger.debug(f"キャッシュディレクトリが見つかりません: {cache_dir}")
             return False
 
@@ -243,21 +247,21 @@ def delete_cache(file_path, cache_id=None):
             cache_path_obj = Path(cache_path)
             raw_data_cache_path = cache_path_obj.with_name(cache_path_obj.stem + "_raw.h5")
 
-            if os.path.exists(cache_path):
-                os.remove(cache_path)
+            if cache_path_obj.exists():
+                cache_path_obj.unlink()
                 logger.info(f"キャッシュを削除しました: {cache_path}")
 
-            if os.path.exists(raw_data_cache_path):
-                os.remove(raw_data_cache_path)
+            if raw_data_cache_path.exists():
+                raw_data_cache_path.unlink()
                 logger.info(f"raw_dataキャッシュを削除しました: {raw_data_cache_path}")
         else:
             # このファイルの全てのキャッシュを削除
             cache_pattern = f"{base_name}_"
             for filename in os.listdir(cache_dir):
                 if filename.startswith(cache_pattern) and filename.endswith((".pickle", "_raw.h5")):
-                    file_path = os.path.join(cache_dir, filename)
-                    os.remove(file_path)
-                    logger.info(f"キャッシュを削除しました: {file_path}")
+                    target_path = cache_dir / filename
+                    target_path.unlink()
+                    logger.info(f"キャッシュを削除しました: {target_path}")
 
         return True
 

@@ -19,7 +19,7 @@
 
 このガイドでは、AATプロジェクトのテスト戦略、テストケースの作成方法、およびテストの実行方法について説明します。品質の高いソフトウェアを維持するため、包括的なテストカバレッジを目指します。
 
-**注意**: 現在、テストは未実装です。このドキュメントは将来のテスト実装のためのガイドラインとして機能します。
+**注意**: テストは `tests/` ディレクトリに実装されています。このドキュメントは、現在のテスト構成と実行方法について説明します。
 
 ### テストの重要性
 
@@ -48,11 +48,11 @@
 
 ### テストカバレッジ目標
 
-| テストタイプ | カバレッジ目標 | 現状 | 優先度 | 実装計画 |
+| テストタイプ | カバレッジ目標 | 現状 | 優先度 | 実装状況 |
 |------------|--------------|------|--------|----------|
-| ユニットテスト | 80%以上 | 未実装 | 高 | 将来実装 |
-| 統合テスト | 60%以上 | 未実装 | 中 | 将来実装 |
-| GUIテスト | 主要機能 | 未実装 | 中 | 将来実装 |
+| ユニットテスト | 80%以上 | 実装済 | 高 | `tests/` 直下に配置 |
+| 統合テスト | 60%以上 | 一部実装 | 中 | ユニットテストと併用 |
+| GUIテスト | 主要機能 | 実装済 | 中 | `tests/gui/` に配置 |
 | E2Eテスト | クリティカルパス | 未実装 | 低 | 将来実装 |
 
 ---
@@ -73,36 +73,19 @@ pip install pytest pytest-cov pytest-qt pytest-mock
 
 **注意**: 以下は提案されるテストディレクトリ構造です。実装時に作成してください。
 
-```
 tests/
 ├── __init__.py
 ├── conftest.py              # 共通のフィクスチャ
-├── unit/                    # ユニットテスト
-│   ├── __init__.py
-│   ├── test_data_processor.py
-│   ├── test_statistics.py
-│   ├── test_cache_manager.py
-│   ├── test_export.py
-│   ├── test_config.py
-│   └── test_exceptions.py
-├── integration/             # 統合テスト
-│   ├── __init__.py
-│   ├── test_data_pipeline.py
-│   ├── test_cache_integration.py
-│   └── test_export_integration.py
+├── test_data_processor.py   # データ処理のユニットテスト
+├── test_statistics.py       # 統計計算のユニットテスト
+├── test_cache_manager.py    # キャッシュ管理のユニットテスト
+├── test_export.py          # エクスポート機能のユニットテスト
+├── test_config.py          # 設定管理のユニットテスト
+├── test_workers.py         # ワーカースレッドのテスト
 ├── gui/                     # GUIテスト
 │   ├── __init__.py
-│   ├── test_main_window.py
-│   ├── test_settings_dialog.py
-│   └── test_workers.py
-├── performance/             # パフォーマンステスト
-│   ├── __init__.py
-│   └── test_large_files.py
-└── fixtures/               # テストデータ
-    ├── sample_data.csv
-    ├── large_data.csv
-    └── invalid_data.csv
-```
+│   └── test_main_window_smoke.py # メインウィンドウのスモークテスト
+└── fixtures/               # テストデータ（必要に応じて作成）
 
 ### 共通フィクスチャの設定
 
@@ -458,8 +441,8 @@ class TestCacheIntegration:
 ```python
 # tests/gui/test_main_window.py
 import pytest
-from PyQt6.QtCore import Qt, QTimer
-from PyQt6.QtTest import QTest
+from PySide6.QtCore import Qt, QTimer
+from PySide6.QtTest import QTest
 from gui.main_window import MainWindow
 
 @pytest.fixture
@@ -481,7 +464,7 @@ class TestMainWindow:
         """ファイル選択ボタンのテスト"""
         # ファイルダイアログをモック
         mocker.patch(
-            'PyQt6.QtWidgets.QFileDialog.getOpenFileNames',
+            'PySide6.QtWidgets.QFileDialog.getOpenFileNames',
             return_value=(["test.csv"], "")
         )
         
@@ -528,7 +511,7 @@ class TestMainWindow:
 ```python
 # tests/gui/test_workers.py
 import pytest
-from PyQt6.QtCore import QEventLoop
+from PySide6.QtCore import QEventLoop
 from gui.workers import GQualityWorker
 import pandas as pd
 import numpy as np
@@ -558,6 +541,27 @@ class TestGQualityWorker:
         assert hasattr(worker, 'g_quality_data')
         assert 'window_sizes' in worker.g_quality_data
         assert len(worker.g_quality_data['window_sizes']) == 5
+
+### テーマ切り替えのテスト
+
+```python
+# tests/gui/test_theme.py
+def test_theme_switching(main_window, qtbot):
+    """テーマ切り替えのテスト"""
+    from gui.styles import ThemeType
+
+    # ダークモードに切り替え
+    main_window.dark_theme_action.trigger()
+    assert main_window.current_theme_type == ThemeType.DARK
+    
+    # ライトモードに切り替え
+    main_window.light_theme_action.trigger()
+    assert main_window.current_theme_type == ThemeType.LIGHT
+    
+    # システムデフォルトに切り替え
+    main_window.system_theme_action.trigger()
+    assert main_window.current_theme_type == ThemeType.SYSTEM
+```
 ```
 
 ---
@@ -727,7 +731,7 @@ jobs:
 
 ### ローカルでのテスト実行
 
-**注意**: 以下のコマンドは、テストが実装された後に使用できます。現在、テストは未実装です。
+**注意**: 以下のコマンドでテストを実行できます。
 
 ```bash
 # すべてのテストを実行（テスト実装後）
@@ -737,10 +741,10 @@ pytest
 pytest tests/unit/
 
 # 特定のファイルのテストを実行
-pytest tests/unit/test_statistics.py
+pytest tests/test_statistics.py
 
 # 特定のテストケースを実行
-pytest tests/unit/test_statistics.py::TestCalculateStatistics::test_normal_calculation
+pytest tests/test_statistics.py::TestCalculateStatistics::test_normal_calculation
 
 # カバレッジ付きで実行
 pytest --cov=core --cov=gui --cov-report=html
@@ -805,7 +809,7 @@ def expensive_resource():
 @pytest.fixture
 def mock_file_dialog(mocker):
     """ファイルダイアログのモック"""
-    return mocker.patch('PyQt6.QtWidgets.QFileDialog.getOpenFileName')
+    return mocker.patch('PySide6.QtWidgets.QFileDialog.getOpenFileName')
 ```
 
 ### 4. パラメータ化テスト

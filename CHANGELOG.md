@@ -7,6 +7,49 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Changed
+- **GUIフレームワークの移行**:
+  - PyQt6からPySide6に移行
+  - すべてのPyQt6インポートをPySide6に置き換え
+  - `pyqtSignal` を `Signal`、`pyqtProperty` を `Property`、`pyqtSlot` を `Slot` に変更
+  - ビルドスクリプト（`scripts/build_mac_app.py`）のhidden importsを更新
+  - すべてのドキュメント（開発者ガイド、デプロイメントガイド、テストガイド）のコード例を更新
+  - `pytest` の `qt_api` 設定を `pyside6` に更新
+
+## [10.0.0] - 2025-11-22
+
+### Added
+- **ライトモードとシステムテーマのサポート**:
+  - ダークモード（デフォルト）、ライトモード、システムデフォルトの3つのテーマオプションを提供
+  - OSのテーマ設定（ライト/ダーク）に合わせて自動的に切り替わる機能を追加
+  - ライトモードの配色を「Modern Indigo」テーマに刷新し、視認性を向上
+- **モダンなUIコンポーネント**:
+  - アニメーション付きのトグルスイッチ（設定ダイアログ）
+  - スタイリッシュなドロップダウンメニュー（QComboBox）
+  - 全体的なUIの視認性と操作性を向上（フォントサイズ、余白、レイアウトの最適化）
+
+### Changed
+- UIテーマ基盤を刷新し、メジャーバージョン 10 としてリリース
+- ウィンドウタイトルを "AAT (Acceleration Analysis Tool)" に統一
+- `gui/styles.py` を拡張し、テーマ管理を一元化
+- 設定ダイアログのチェックボックスをトグルスイッチに置き換え
+- メニューバーの「表示」メニューに「テーマ」サブメニューを追加
+- 全ドキュメント（README, ユーザーマニュアル, 開発者ガイド等）を最新仕様に合わせて更新
+- **データ処理の安定性と柔軟性を向上**:
+  - Inner CapsuleまたはDrag Shieldのいずれか片方のデータしか存在しない場合でも、エラーにならずに解析・表示できるよう改善
+  - グラフ表示時に利用可能なセンサーデータのみを自動的に判別して表示（`_resolve_sensor_visibility`）
+
+### Fixed
+- データ読み込み時の列検出ロジックを改善し、より多様なCSVフォーマットに対応
+- フィルタリング処理時のデータ長不整合によるエラーハンドリングを強化
+- グラフ描画時のセンサーデータ欠落によるクラッシュを防止
+
+### Technical Changes
+- バージョン管理ロジックを `core/version.py` に分離
+- パス管理ロジックを `core/paths.py` に分離し、ディレクトリ構造の扱いを改善
+- 設定ファイルの保存場所をアプリケーションルートからユーザー設定ディレクトリ（例: `Application Support/AAT`）に移動
+- キャッシュシステムの最適化（生データの保存にHDF5を採用し、Pickleのサイズ制限を回避）
+
 ## [9.3.0] - 2025-08-09
 
 ### Changed
@@ -49,7 +92,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - GUI応答性とエラーメッセージの改善
 
 ### Fixed
-- macOS環境でのPyQt6関連の警告を抑制
+- macOS環境でのPySide6関連の警告を抑制
 - バックグラウンドワーカーのエラーハンドリング強化
 - 設定ファイル検証の改善
 
@@ -100,7 +143,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 詳細な変更内容については、各リリースのGitHubリリースページを参照してください。
 
-[Unreleased]: https://github.com/sata04/AAT/compare/v9.3.0...HEAD
+[Unreleased]: https://github.com/sata04/AAT/compare/v10.0.0...HEAD
+[10.0.0]: https://github.com/sata04/AAT/compare/v9.3.0...v10.0.0
 [9.3.0]: https://github.com/sata04/AAT/compare/v9.2.0...v9.3.0
 [9.2.0]: https://github.com/sata04/AAT/compare/v9.1.0...v9.2.0
 [9.1.0]: https://github.com/sata04/AAT/compare/v9.0.0...v9.1.0

@@ -121,8 +121,12 @@ graph TD
    - 主要機能: 設定値の表示、編集、保存
 
 4. **column_selector_dialog.py**
-   - 責務: 列選択UI
-   - 主要機能: CSV列の選択、プレビュー
+    - 責務: 列選択UI
+    - 主要機能: CSV列の選択、プレビュー
+
+5. **styles.py**
+    - 責務: テーマとスタイル管理
+    - 主要機能: カラーパレット定義、テーマ適用、スタイルシート生成
 
 ---
 
@@ -339,36 +343,36 @@ config = {
 
 ## インターフェース設計
 
-### PyQt Signalインターフェース
+### PySide6 Signalインターフェース
 
 #### MainWindow Signals
 ```python
 class MainWindow(QMainWindow):
     # ファイル処理関連
-    file_loaded = pyqtSignal(str)          # ファイル読み込み完了
-    file_error = pyqtSignal(str)           # ファイルエラー
+    file_loaded = Signal(str)          # ファイル読み込み完了
+    file_error = Signal(str)           # ファイルエラー
     
     # 処理進捗
-    progress_started = pyqtSignal(str)     # 処理開始
-    progress_updated = pyqtSignal(int)     # 進捗更新（0-100）
-    progress_finished = pyqtSignal()       # 処理完了
+    progress_started = Signal(str)     # 処理開始
+    progress_updated = Signal(int)     # 進捗更新（0-100）
+    progress_finished = Signal()       # 処理完了
     
     # データ更新
-    data_updated = pyqtSignal(dict)        # データ更新
-    statistics_updated = pyqtSignal(dict)  # 統計更新
+    data_updated = Signal(dict)        # データ更新
+    statistics_updated = Signal(dict)  # 統計更新
 ```
 
 #### Worker Signals
 ```python
 class GQualityWorker(QThread):
     # 進捗報告
-    progress = pyqtSignal(int)             # 進捗率
-    status = pyqtSignal(str)               # ステータスメッセージ
+    progress = Signal(int)             # 進捗率
+    status = Signal(str)               # ステータスメッセージ
     
     # 結果報告
-    result = pyqtSignal(dict)              # 解析結果
-    error = pyqtSignal(str)                # エラーメッセージ
-    finished = pyqtSignal()                # 処理完了
+    result = Signal(dict)              # 解析結果
+    error = Signal(str)                # エラーメッセージ
+    finished = Signal()                # 処理完了
 ```
 
 ### ファイルインターフェース
@@ -556,4 +560,4 @@ class AnalysisPlugin(ABC):
 
 ---
 
-最終更新日: 2024年12月
+最終更新日: 2025年11月22日

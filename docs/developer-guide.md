@@ -24,7 +24,7 @@
 ### 前提条件
 
 - Python 3.9以降の知識
-- PyQt6の基本的な理解
+- PySide6の基本的な理解
 - Gitの使用経験
 - 微小重力実験データの基礎知識（推奨）
 
@@ -64,24 +64,21 @@ source .venv/bin/activate  # macOS/Linux
 ### 3. 依存関係のインストール
 
 ```bash
-# 本番用依存関係
-pip install -r requirements.txt
+# 開発用依存関係（ruff、pytest、types-openpyxl等を含む）
+uv pip install -e ".[dev]"
 
-# 開発用依存関係（ruff、pytest等を含む）
+# uvを使わない場合
 pip install -e ".[dev]"
 ```
 
 ### 4. pre-commitフックの設定
 
 ```bash
-# pre-commitのインストール
-pip install pre-commit
-
-# フックの設定
-pre-commit install
+# フックの設定（uv経由）
+uv run pre-commit install
 
 # 手動実行（オプション）
-pre-commit run --all-files
+uv run pre-commit run --all-files
 ```
 
 ### 5. VSCode設定（推奨）
@@ -98,14 +95,14 @@ code --install-extension ms-python.debugpy
 
 ```bash
 # アプリケーションの起動確認
-python main.py --debug
+uv run python main.py --debug
 
 # コード品質チェック
-ruff check .
-ruff format .
+uv run ruff check .
+uv run ruff format .
 
-# テストの実行
-pytest
+# テストの実行（tests/ を作成した場合）
+uv run pytest -v
 ```
 
 ---
@@ -122,29 +119,33 @@ AAT/
 │   ├── exceptions.py             # カスタム例外
 │   ├── export.py                 # データエクスポート
 │   ├── logger.py                 # ロギング
-│   └── statistics.py             # 統計計算
+│   ├── statistics.py             # 統計計算
+│   └── version.py                # バージョン取得ヘルパー
 ├── gui/                          # GUI関連
 │   ├── __init__.py              # パッケージ初期化
 │   ├── main_window.py           # メインウィンドウ
 │   ├── workers.py               # バックグラウンドワーカー
 │   ├── settings_dialog.py       # 設定ダイアログ
-│   └── column_selector_dialog.py # 列選択ダイアログ
+│   ├── column_selector_dialog.py # 列選択ダイアログ
+│   └── styles.py                # テーマ設定
 ├── config/                       # 設定ファイル
 │   ├── config.default.json      # デフォルト設定
-│   └── config.json              # ユーザー設定（gitignore）
+│   └── （ユーザー設定はOS標準の設定ディレクトリに保存）
 ├── docs/                        # ドキュメント
-├── tests/                       # テストコード（未実装）
+├── tests/                       # テストを追加する場合に作成
 ├── .github/                     # GitHub Actions設定
 │   └── workflows/
-│       └── ci.yml              # CI/CDパイプライン
+│       └── ruff.yml            # Ruffチェック
 ├── .vscode/                    # VSCode設定
 ├── main.py                     # エントリーポイント
 ├── pyproject.toml              # プロジェクト設定
-├── requirements.txt            # 依存関係
+├── uv.lock                     # 依存関係ロックファイル
 ├── README.md                   # プロジェクトREADME
-├── CLAUDE.md                   # Claude Code用説明
+├── AGENTS.md                   # 開発ガイドライン
 └── LICENSE.md                  # ライセンス
 ```
+
+ユーザー設定（`config.json`）は `core.config.get_user_config_dir()` が返すOS標準の設定ディレクトリに保存されます（mac: `~/Library/Application Support/AAT/`、Windows: `%APPDATA%\\AAT\\`、Linux/WSL: `$XDG_CONFIG_HOME/AAT/`）。保存先を変えたい場合は環境変数 `AAT_CONFIG_DIR` で上書きできます。
 
 ---
 
@@ -157,7 +158,7 @@ AATは3層のレイヤードアーキテクチャを採用しています：
 ```
 ┌─────────────────────────────────────┐
 │      GUI Layer (gui/)               │
-│  - PyQt6ベースのユーザーインターフェース    │
+│  - PySide6ベースのユーザーインターフェース    │
 │  - ユーザー操作の処理                   │
 │  - データの視覚化                      │
 ├─────────────────────────────────────┤
@@ -190,6 +191,11 @@ CSV読込 → 列検出 → 同期点検出 → 重力レベル変換 → フィ
 重い処理 → QThreadWorker → 進捗Signal → プログレスバー更新
 ```
 
+#### 4. テーマ管理
+```
+設定/OS → ThemeType → Styles.py → QPalette/StyleSheet適用
+```
+
 ### 設計原則
 
 1. **関心の分離**: GUIとビジネスロジックの完全分離
@@ -207,7 +213,7 @@ CSV読込 → 列検出 → 同期点検出 → 重力レベル変換 → フィ
 
 #### 基本ルール
 - インデント: スペース4つ
-- 行長: 最大120文字
+- 行長: 最大120文字 (Ruff設定)
 - 文字列: ダブルクォート使用
 - インポート: isortルールに従う
 
@@ -322,21 +328,21 @@ def load_data(file_path: str) -> pd.DataFrame:
         )
 ```
 
-### PyQt6のベストプラクティス
+### PySide6のベストプラクティス
 
 #### Signalとslotの定義
 ```python
 class MainWindow(QMainWindow):
     # Signalは クラスレベルで定義
-    data_loaded = pyqtSignal(str)
-    progress_updated = pyqtSignal(int)
+    data_loaded = Signal(str)
+    progress_updated = Signal(int)
     
     def __init__(self):
         super().__init__()
         # Signal接続は初期化時に
         self.data_loaded.connect(self.on_data_loaded)
         
-    @pyqtSlot(str)
+    @Slot(str)
     def on_data_loaded(self, file_path: str):
         """データ読み込み完了時の処理"""
         pass
@@ -345,9 +351,9 @@ class MainWindow(QMainWindow):
 #### スレッド処理
 ```python
 class DataProcessingWorker(QThread):
-    progress = pyqtSignal(int)
-    finished = pyqtSignal(dict)
-    error = pyqtSignal(str)
+    progress = Signal(int)
+    finished = Signal(dict)
+    error = Signal(str)
     
     def __init__(self, file_path: str, config: dict):
         super().__init__()
@@ -586,8 +592,8 @@ class TestStatistics:
 
 ```python
 import pytest
-from PyQt6.QtTest import QTest
-from PyQt6.QtCore import Qt
+from PySide6.QtTest import QTest
+from PySide6.QtCore import Qt
 from gui.main_window import MainWindow
 
 @pytest.fixture
@@ -625,6 +631,10 @@ pytest -m gui
 
 # 遅いテストをスキップ
 pytest -m "not slow"
+
+### カスタムマーカー
+- `slow`: 実行に時間がかかるテスト（パフォーマンステスト等）
+- `gui`: GUIコンポーネントを必要とするテスト（Qtバックエンドが必要）
 ```
 
 ---
@@ -653,13 +663,13 @@ def process_data(file_path: str):
 
 ```bash
 # デバッグログを有効化
-python main.py --debug
+uv run python main.py --debug
 
 # 環境変数で設定
-AAT_DEBUG=1 python main.py
+AAT_DEBUG=1 uv run python main.py
 
 # ログレベルを指定
-AAT_LOG_LEVEL=DEBUG python main.py
+AAT_LOG_LEVEL=DEBUG uv run python main.py
 ```
 
 ### VSCodeでのデバッグ
@@ -770,20 +780,18 @@ def process_large_file(file_path: str, chunk_size: int = 10000):
 
 ### 1. バージョン番号の更新
 
-```python
-# core/config.py
-APP_VERSION = "9.3.0"  # Major.Minor.Patch
+`core/version.APP_VERSION`が参照する単一ソースは`pyproject.toml`の`[project].version`です。ここを更新すると、キャッシュ無効化やUI表示に自動反映されます。
 
-# pyproject.toml
+```toml
 [project]
-version = "9.3.0"
+version = "10.0.0"  # Major.Minor.Patch
 ```
 
 ### 2. 変更履歴の更新
 
 CHANGELOG.mdに変更内容を記載：
 ```markdown
-## [9.3.0] - 2024-12-XX
+## [10.0.0] - 2025-11-22
 
 ### Added
 - 新機能の説明
@@ -809,20 +817,20 @@ pytest tests/regression/
 
 ```bash
 # パッケージのビルド
-python -m build
+uv run python -m build
 
 # 実行可能ファイルの作成（PyInstaller使用）
-pyinstaller --onefile --windowed main.py
+uv run pyinstaller --onefile --windowed main.py
 ```
 
 ### 5. タグ付けとリリース
 
 ```bash
 # タグの作成
-git tag -a v9.3.0 -m "Release version 9.3.0"
+git tag -a v10.0.0 -m "Release version 10.0.0"
 
 # GitHubへプッシュ
-git push origin v9.3.0
+git push origin v10.0.0
 
 # GitHub Releasesでリリースノートを作成
 ```
@@ -865,8 +873,8 @@ class NewFeatureError(AATException):
 ```python
 # gui/workers.py
 class NewAnalysisWorker(QThread):
-    progress = pyqtSignal(int)
-    result = pyqtSignal(dict)
+    progress = Signal(int)
+    result = Signal(dict)
     
     def __init__(self, data: pd.DataFrame):
         super().__init__()
@@ -902,11 +910,11 @@ def add_custom_annotation(self, ax, x, y, text):
 
 ### よくある問題と解決方法
 
-#### ImportError: No module named 'PyQt6'
+#### ImportError: No module named 'PySide6'
 ```bash
-# PyQt6の再インストール
-pip uninstall PyQt6
-pip install PyQt6
+# PySide6の再インストール
+pip uninstall PySide6
+pip install PySide6
 ```
 
 #### Signal/Slot接続エラー

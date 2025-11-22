@@ -2,6 +2,8 @@
     "time_column": "データセット1:時間(s)",
     "acceleration_column_inner_capsule": "データセット1:Z-axis acceleration 1(m/s²)",
     "acceleration_column_drag_shield": "データセット1:Z-axis acceleration 2(m/s²)",
+    "use_inner_acceleration": true,
+    "use_drag_acceleration": true,
     "sampling_rate": 1000,
     "gravity_constant": 9.797578,
     "ylim_min": -1.0,
@@ -16,10 +18,12 @@
     "auto_calculate_g_quality": true,
     "use_cache": true,
     "default_graph_duration": 1.45,
+    "graph_sensor_mode": "both",
+    "theme": "system",
     "export_figure_width": 10.6,
     "export_figure_height": 3.4,
     "export_dpi": 300,
     "export_bbox_inches": null,
     "invert_inner_acceleration": true,
-    "app_version": "9.3.0"
+    "app_version": "10.0.0"
 }

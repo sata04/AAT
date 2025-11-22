@@ -1,4 +1,4 @@
-# 🚀 AAT (Acceleration Analysis Tool) v9.3.0
+# 🚀 AAT (Acceleration Analysis Tool) v10.0.0
 
 > 微小重力環境の実験データを簡単に分析・可視化するためのデスクトップアプリケーション
 
@@ -11,35 +11,40 @@ AATは、宇宙環境での微小重力実験データを分析するための�
 
 ## ✨ 主な特徴
 
-- 📊 **簡単データ分析**: CSVファイルをドラッグ&ドロップするだけ
+- 📊 **簡単データ分析**: ファイル選択ボタンからCSVファイルを読み込むだけ
 - 📈 **リアルタイム可視化**: 美しいグラフでデータを即座に表示
 - 🔍 **詳細統計分析**: G-quality評価による高精度な微小重力環境評価
 - 💾 **自動データ保存**: Excel形式での結果出力とグラフ画像の自動保存
 - ⚡ **高速処理**: キャッシュ機能による高速な再処理
 - 🖱️ **インタラクティブ**: グラフ上でのマウス操作による範囲選択分析
+- 🎨 **モダンなUI**: ダーク/ライトモード切替とシステムテーマ連動
 
 ## 🚀 クイックスタート
 
 ### 1. 必要な環境
 
-- **Python 3.7以上**
+- **Python 3.9以上**
 - **オペレーティングシステム**: Windows、macOS、Linux
 
 ### 2. インストール
+
+推奨: [uv](https://github.com/astral-sh/uv) を使用する場合
 
 ```bash
 # リポジトリをクローン
 git clone https://github.com/sata04/AAT.git
 cd AAT
 
-# 必要なライブラリをインストール
-pip install -r requirements.txt
+# 仮想環境の作成と依存関係のインストール
+uv venv
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
+uv pip install -e ".[dev]"
 ```
 
 ### 3. アプリケーションの起動
 
 ```bash
-python main.py
+uv run python main.py
 ```
 
 ### 4. 最初のデータ分析
@@ -95,9 +100,19 @@ python scripts/build_mac_app.py
 | 設定項目 | 説明 | デフォルト値 |
 |---------|------|-------------|
 | サンプリングレート | データの周波数 | 1000 Hz |
-| 重力定数 | 基準重力値 | 9.79758 m/s² |
+| 重力定数 | 基準重力値 | 9.797578 m/s² |
 | ウィンドウサイズ | 分析の時間窓 | 0.1秒 |
 | キャッシュ使用 | 高速処理の有効化 | ON |
+| G-quality自動計算 | 読み込み時の自動評価 | ON |
+| Inner加速度反転 | センサーの向き補正 | OFF |
+
+設定はOS標準のユーザー設定ディレクトリに自動保存されます（mac: `~/Library/Application Support/AAT/config.json`、Windows: `%APPDATA%\\AAT\\config.json`、Linux/WSL: `$XDG_CONFIG_HOME/AAT/config.json`）。保存先を変えたい場合は環境変数`AAT_CONFIG_DIR`を指定してください。旧仕様の`./config.json`がある場合は初回起動時に自動移行します。
+
+### テーマ設定
+メニューバーの「表示」>「テーマ」から以下のモードを選択できます：
+- **システムデフォルト**: OSの設定に合わせて自動切替
+- **ダークモード**: 暗い背景の配色（デフォルト）
+- **ライトモード**: 明るい背景の配色
 
 ## 🔧 詳細機能
 
@@ -172,7 +187,7 @@ python scripts/build_mac_app.py
 pip install -r requirements.txt --force-reinstall
 
 # Python バージョンを確認
-python --version  # 3.7以上が必要
+python --version  # 3.9以上が必要
 ```
 
 **Q: CSVファイルが読み込めない**
@@ -213,7 +228,6 @@ python --version  # 3.7以上が必要
 ```
 AAT/
 ├── main.py                     # エントリーポイント
-├── config.json                 # 設定ファイル
 ├── core/                      # コア処理モジュール
 │   ├── data_processor.py      # データ処理
 │   ├── statistics.py          # 統計分析
@@ -229,8 +243,7 @@ AAT/
 │   └── column_selector_dialog.py  # 列選択ダイアログ
 ├── docs/                     # プロジェクトドキュメント
 └── config/                   # 設定ファイル
-    ├── config.default.json   # デフォルト設定
-    └── config.json          # ユーザー設定
+    └── config.default.json   # デフォルト設定（ユーザー設定はOS標準ディレクトリに保存）
 ```
 
 ### 設計原則

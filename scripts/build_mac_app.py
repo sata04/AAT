@@ -76,6 +76,9 @@ def generate_icns(icon_path: Path, output_path: Path) -> Path:
     if icon_path.suffix.lower() == ".icns":
         return icon_path
 
+    if not icon_path.exists():
+        raise FileNotFoundError(f"アイコンファイルが見つかりません: {icon_path}")
+
     if platform.system() != "Darwin":
         raise RuntimeError(".ico から .icns への変換はmacOSでのみサポートされています。事前に.icnsを用意してください。")
 
@@ -155,9 +158,9 @@ def build(icon_path: Path, bundle_identifier: str) -> None:
         f"--workpath={WORK_DIR}",
         f"--specpath={SPEC_DIR}",
         f"--osx-bundle-identifier={bundle_identifier}",
-        "--hidden-import=PyQt6.QtGui",
-        "--hidden-import=PyQt6.QtCore",
-        "--hidden-import=PyQt6.QtWidgets",
+        "--hidden-import=PySide6.QtGui",
+        "--hidden-import=PySide6.QtCore",
+        "--hidden-import=PySide6.QtWidgets",
         f"--add-data={PROJECT_ROOT / 'config' / 'config.default.json'}{os.pathsep}config",
         f"--add-data={PROJECT_ROOT / 'docs' / 'user-manual.md'}{os.pathsep}docs",
         str(PROJECT_ROOT / "main.py"),

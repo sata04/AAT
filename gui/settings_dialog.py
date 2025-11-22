@@ -6,8 +6,7 @@
 ユーザーが重力レベル解析に関連する様々なパラメータを調整できるようにします。
 """
 
-from PyQt6.QtWidgets import (
-    QCheckBox,
+from PySide6.QtWidgets import (
     QComboBox,
     QDialog,
     QDialogButtonBox,
@@ -22,6 +21,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.logger import get_logger
+from gui.widgets import ToggleSwitch
 
 # ロガーの初期化
 logger = get_logger("settings_dialog")
@@ -48,6 +48,7 @@ class SettingsDialog(QDialog):
         self.config = config
         self.setWindowTitle("設定")
         self.setModal(True)
+        self.resize(500, 700)  # Slightly larger default size
 
         # レイアウトの初期化
         self._init_layout()
@@ -58,20 +59,28 @@ class SettingsDialog(QDialog):
         """
         ダイアログのレイアウトとウィジェットを初期化する
         """
+
         # メインレイアウト
         main_layout = QVBoxLayout(self)
+        main_layout.setContentsMargins(0, 0, 0, 0)
+        main_layout.setSpacing(0)
 
         # スクロールエリアの作成
         scroll_area = QScrollArea()
         scroll_area.setWidgetResizable(True)
+        scroll_area.setFrameShape(QScrollArea.Shape.NoFrame)
 
         # スクロールエリア内のコンテンツウィジェット
         content_widget = QWidget()
         layout = QVBoxLayout(content_widget)
+        layout.setContentsMargins(24, 24, 24, 24)
+        layout.setSpacing(24)
 
         # データ入力設定グループ
         input_group = QGroupBox("データ入力設定")
         form_layout1 = QFormLayout(input_group)
+        form_layout1.setSpacing(16)
+        form_layout1.setContentsMargins(16, 24, 16, 16)
 
         # データ列設定
         self.time_column = QLineEdit(self.config["time_column"])
@@ -98,21 +107,23 @@ class SettingsDialog(QDialog):
         form_layout1.addRow("重力定数 (m/s²):", self.gravity_constant)
 
         # Inner加速度計の上下反転補正
-        self.invert_inner_acceleration = QCheckBox()
+        self.invert_inner_acceleration = ToggleSwitch()
         self.invert_inner_acceleration.setChecked(self.config.get("invert_inner_acceleration", False))
         form_layout1.addRow("Inner加速度計の上下反転補正:", self.invert_inner_acceleration)
 
         # パフォーマンス設定グループ
         perf_group = QGroupBox("パフォーマンス設定")
         perf_layout = QFormLayout(perf_group)
+        perf_layout.setSpacing(16)
+        perf_layout.setContentsMargins(16, 24, 16, 16)
 
         # キャッシュ使用設定
-        self.use_cache = QCheckBox()
+        self.use_cache = ToggleSwitch()
         self.use_cache.setChecked(self.config.get("use_cache", True))
         perf_layout.addRow("処理済みデータをキャッシュする:", self.use_cache)
 
         # 自動G-quality評価
-        self.auto_calculate_g_quality = QCheckBox()
+        self.auto_calculate_g_quality = ToggleSwitch()
         self.auto_calculate_g_quality.setChecked(self.config.get("auto_calculate_g_quality", True))
         perf_layout.addRow(
             "ファイル読み込み時にG-quality評価を自動計算:",
@@ -122,6 +133,8 @@ class SettingsDialog(QDialog):
         # グラフ表示設定グループ
         display_group = QGroupBox("グラフ表示設定")
         form_layout2 = QFormLayout(display_group)
+        form_layout2.setSpacing(16)
+        form_layout2.setContentsMargins(16, 24, 16, 16)
 
         # グラフY軸範囲
         self.ylim_min = QDoubleSpinBox()
@@ -146,9 +159,20 @@ class SettingsDialog(QDialog):
         self.default_graph_duration.setValue(self.config.get("default_graph_duration", 1.45))
         form_layout2.addRow("デフォルトグラフ表示時間 (秒):", self.default_graph_duration)
 
+        self.graph_sensor_mode = QComboBox()
+        self.graph_sensor_mode.addItems(["両方を表示", "Inner Capsuleのみ", "Drag Shieldのみ"])
+        graph_mode = self.config.get("graph_sensor_mode", "both")
+        if graph_mode == "inner_only":
+            self.graph_sensor_mode.setCurrentIndex(1)
+        elif graph_mode == "drag_only":
+            self.graph_sensor_mode.setCurrentIndex(2)
+        form_layout2.addRow("グラフに表示するセンサー:", self.graph_sensor_mode)
+
         # エクスポート設定グループ
         export_group = QGroupBox("エクスポート設定")
         form_layout_export = QFormLayout(export_group)
+        form_layout_export.setSpacing(16)
+        form_layout_export.setContentsMargins(16, 24, 16, 16)
 
         # エクスポート図の幅
         self.export_figure_width = QDoubleSpinBox()
@@ -186,6 +210,8 @@ class SettingsDialog(QDialog):
         # 解析設定グループ
         analysis_group = QGroupBox("解析設定")
         form_layout3 = QFormLayout(analysis_group)
+        form_layout3.setSpacing(16)
+        form_layout3.setContentsMargins(16, 24, 16, 16)
 
         # 加速度閾値
         self.acceleration_threshold = QDoubleSpinBox()
@@ -222,6 +248,8 @@ class SettingsDialog(QDialog):
         # G-quality解析設定グループ
         g_quality_group = QGroupBox("G-quality解析設定")
         form_layout4 = QFormLayout(g_quality_group)
+        form_layout4.setSpacing(16)
+        form_layout4.setContentsMargins(16, 24, 16, 16)
 
         # G-quality解析パラメータ
         self._init_g_quality_widgets(form_layout4)
@@ -317,6 +345,7 @@ class SettingsDialog(QDialog):
             "export_dpi": self.export_dpi.value(),
             "export_bbox_inches": "tight" if self.export_bbox_inches.currentIndex() == 1 else None,
             "invert_inner_acceleration": self.invert_inner_acceleration.isChecked(),
+            "graph_sensor_mode": ["both", "inner_only", "drag_only"][self.graph_sensor_mode.currentIndex()],
         }
 
         logger.debug(f"設定変更: {settings}")

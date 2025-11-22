@@ -6,12 +6,12 @@ CSVファイルからのデータ読み込み、列の自動検出、重力レ�
 およびデータのフィルタリング機能を提供します。
 """
 
-from typing import Any
+from typing import Any, Optional
 
 import numpy as np
 import pandas as pd
 
-from core.exceptions import ColumnNotFoundError, DataLoadError, DataProcessingError, SyncPointNotFoundError
+from core.exceptions import ColumnNotFoundError, DataLoadError, DataProcessingError
 from core.logger import get_logger, log_exception
 
 # モジュール用のロガーを初期化
@@ -103,35 +103,44 @@ def load_and_process_data(file_path: str, config: dict[str, Any]) -> tuple[pd.Se
         data = pd.read_csv(file_path)
         logger.debug(f"読み込んだCSVのカラム: {data.columns.tolist()}")
 
+        use_inner = config.get("use_inner_acceleration", True)
+        use_drag = config.get("use_drag_acceleration", True)
+
+        if not use_inner and not use_drag:
+            raise DataProcessingError(
+                "Inner CapsuleとDrag Shieldの両方の加速度計が無効です。いずれかを有効にしてください。"
+            )
+
         # 設定から列名を取得
         time_column = config["time_column"]
         acceleration_inner_column = config["acceleration_column_inner_capsule"]
         acceleration_drag_column = config["acceleration_column_drag_shield"]
 
         # 列が存在するか確認
-        columns_exist = all(
-            col in data.columns
-            for col in [
-                time_column,
-                acceleration_inner_column,
-                acceleration_drag_column,
-            ]
-        )
+        missing_columns: list[str] = []
+        if time_column not in data.columns:
+            missing_columns.append(time_column)
+        if use_inner and acceleration_inner_column not in data.columns:
+            missing_columns.append(acceleration_inner_column)
+        if use_drag and acceleration_drag_column not in data.columns:
+            missing_columns.append(acceleration_drag_column)
 
-        if not columns_exist:
-            # この場合は呼び出し元で列の選択ダイアログを表示するためにエラーを送出
-            missing_columns = []
-            for col in [time_column, acceleration_inner_column, acceleration_drag_column]:
-                if col not in data.columns:
-                    missing_columns.append(col)
+        if missing_columns:
+            # 呼び出し元で列選択ダイアログを表示するためにエラーを送出
             raise ColumnNotFoundError(file_path, missing_columns, data.columns.tolist())
 
         time = data[time_column]
-        acceleration_inner_capsule = data[acceleration_inner_column]
-        acceleration_drag_shield = data[acceleration_drag_column]
+        acceleration_inner_capsule = (
+            data[acceleration_inner_column]
+            if use_inner and acceleration_inner_column in data
+            else pd.Series(dtype=float)
+        )
+        acceleration_drag_shield = (
+            data[acceleration_drag_column] if use_drag and acceleration_drag_column in data else pd.Series(dtype=float)
+        )
 
         # Inner加速度計の上下反転補正
-        if config.get("invert_inner_acceleration", False):
+        if use_inner and config.get("invert_inner_acceleration", False):
             logger.info("Inner加速度計の上下反転補正を適用します")
             acceleration_inner_capsule = -acceleration_inner_capsule
 
@@ -140,28 +149,47 @@ def load_and_process_data(file_path: str, config: dict[str, Any]) -> tuple[pd.Se
         logger.debug(f"加速度閾値: {acceleration_threshold}")
 
         # Drag ShieldとInner Capsuleの同期点を見つける
-        sync_indices_drag = np.where(np.abs(acceleration_drag_shield) < acceleration_threshold)[0]
-        sync_indices_inner = np.where(np.abs(acceleration_inner_capsule) < acceleration_threshold)[0]
+        sync_indices_drag = (
+            np.where(np.abs(acceleration_drag_shield) < acceleration_threshold)[0]
+            if use_drag and not acceleration_drag_shield.empty
+            else np.array([])
+        )
+        sync_indices_inner = (
+            np.where(np.abs(acceleration_inner_capsule) < acceleration_threshold)[0]
+            if use_inner and not acceleration_inner_capsule.empty
+            else np.array([])
+        )
         logger.debug(
             f"Drag Shield同期点候補数: {len(sync_indices_drag)}, Inner Capsule同期点候補数: {len(sync_indices_inner)}"
         )
 
-        if len(sync_indices_drag) > 0:
-            sync_index_drag = sync_indices_drag[0]
-            # Inner側の同期点はInner Capsuleに存在すればそれを、なければDrag Shieldと同じ位置を使用
-            sync_index_inner = sync_indices_inner[0] if len(sync_indices_inner) > 0 else sync_index_drag
-        else:
-            logger.error("Drag Shieldの同期点が見つかりませんでした")
-            raise SyncPointNotFoundError("Drag Shield")
+        if len(time) == 0:
+            raise DataProcessingError("時間データが空です。CSVの内容を確認してください。")
+
+        # 同期点は可能な限り検出し、検出できない場合は先頭を使用する
+        sync_index_drag = int(sync_indices_drag[0]) if len(sync_indices_drag) > 0 else 0
+        sync_index_inner = int(sync_indices_inner[0]) if len(sync_indices_inner) > 0 else 0
+
+        if use_drag and len(sync_indices_drag) == 0:
+            logger.warning("Drag Shieldの同期点が見つからず、先頭サンプルを同期点として使用します")
+        if use_inner and len(sync_indices_inner) == 0 and len(sync_indices_drag) > 0:
+            sync_index_inner = sync_index_drag
+            logger.info("Inner Capsuleの同期点が見つからなかったため、Drag Shieldの同期点を流用します")
+        elif use_inner and len(sync_indices_inner) == 0:
+            logger.warning("Inner Capsuleの同期点が見つからず、先頭サンプルを同期点として使用します")
 
         logger.info(f"同期点を検出: inner_index={sync_index_inner}, drag_index={sync_index_drag}")
 
-        # 各系列の時間を同期点基準で調整
-        adjusted_time_inner = pd.Series(time - time.iloc[sync_index_inner])
-        adjusted_time_drag = pd.Series(time - time.iloc[sync_index_drag])
+        # 各系列の時間を同期点基準で調整（利用しない系列は空を返す）
+        adjusted_time_inner = pd.Series(time - time.iloc[sync_index_inner]) if use_inner else pd.Series(dtype=float)
+        adjusted_time_drag = pd.Series(time - time.iloc[sync_index_drag]) if use_drag else pd.Series(dtype=float)
 
-        gravity_level_inner_capsule = acceleration_inner_capsule / config["gravity_constant"]
-        gravity_level_drag_shield = acceleration_drag_shield / config["gravity_constant"]
+        gravity_level_inner_capsule = (
+            acceleration_inner_capsule / config["gravity_constant"] if use_inner else pd.Series(dtype=float)
+        )
+        gravity_level_drag_shield = (
+            acceleration_drag_shield / config["gravity_constant"] if use_drag else pd.Series(dtype=float)
+        )
 
         # 処理結果のサンプル値をログに記録
         logger.debug(
@@ -176,7 +204,7 @@ def load_and_process_data(file_path: str, config: dict[str, Any]) -> tuple[pd.Se
             gravity_level_drag_shield,
             adjusted_time_drag,
         )
-    except (ColumnNotFoundError, SyncPointNotFoundError):
+    except ColumnNotFoundError:
         # カスタム例外はそのまま再送出
         raise
     except Exception as e:
@@ -184,7 +212,7 @@ def load_and_process_data(file_path: str, config: dict[str, Any]) -> tuple[pd.Se
         raise DataLoadError(file_path, "データの読み込みに失敗しました", e) from e
 
 
-def _find_start_indices(time: pd.Series, adjusted_time: pd.Series) -> tuple[int, int]:
+def _find_start_indices(time: Optional[pd.Series], adjusted_time: Optional[pd.Series]) -> tuple[int, int]:
     """
     時間データから開始インデックスを検出する
 
@@ -196,26 +224,34 @@ def _find_start_indices(time: pd.Series, adjusted_time: pd.Series) -> tuple[int,
         Inner CapsuleとDrag Shieldの開始インデックス
     """
     # 開始点は0秒から - インデックスエラーを防止するためのチェックを追加
-    start_indices_inner = np.where(time >= 0)[0]
-    if len(start_indices_inner) > 0:
-        start_index_inner = start_indices_inner[0]
+    if time is not None and not time.empty:
+        start_indices_inner = np.where(time >= 0)[0]
+        if len(start_indices_inner) > 0:
+            start_index_inner = int(start_indices_inner[0])
+        else:
+            logger.warning("Inner capsuleの開始点が見つかりませんでした。最初のインデックスを使用します。")
+            start_index_inner = 0
     else:
-        logger.warning("Inner capsuleの開始点が見つかりませんでした。最初のインデックスを使用します。")
         start_index_inner = 0
+        logger.debug("Inner capsuleの時間データが空のため開始インデックスを0に設定します。")
 
-    start_indices_drag = np.where(adjusted_time >= 0)[0]
-    if len(start_indices_drag) > 0:
-        start_index_drag = start_indices_drag[0]
+    if adjusted_time is not None and not adjusted_time.empty:
+        start_indices_drag = np.where(adjusted_time >= 0)[0]
+        if len(start_indices_drag) > 0:
+            start_index_drag = int(start_indices_drag[0])
+        else:
+            logger.warning("Drag shieldの開始点が見つかりませんでした。最初のインデックスを使用します。")
+            start_index_drag = 0
     else:
-        logger.warning("Drag shieldの開始点が見つかりませんでした。最初のインデックスを使用します。")
         start_index_drag = 0
+        logger.debug("Drag shieldの調整時間データが空のため開始インデックスを0に設定します。")
 
     return start_index_inner, start_index_drag
 
 
 def _find_end_indices(
-    gravity_level_inner_capsule: pd.Series,
-    gravity_level_drag_shield: pd.Series,
+    gravity_level_inner_capsule: Optional[pd.Series],
+    gravity_level_drag_shield: Optional[pd.Series],
     min_index_inner: int,
     min_index_drag: int,
     end_gravity_level: float,
@@ -234,26 +270,31 @@ def _find_end_indices(
         Inner CapsuleとDrag Shieldの終了インデックス
     """
     # 最小インデックス以降で終了インデックスを計算
-    end_index_inner_candidates = np.where(gravity_level_inner_capsule >= end_gravity_level)[0]
-    end_index_inner = np.array([i for i in end_index_inner_candidates if i >= min_index_inner])
-
-    end_index_drag_candidates = np.where(gravity_level_drag_shield >= end_gravity_level)[0]
-    end_index_drag = np.array([i for i in end_index_drag_candidates if i >= min_index_drag])
-
-    # データセットごとに個別の終了点を設定
-    if len(end_index_inner) > 0:
-        end_index_inner = end_index_inner[0]
-        logger.debug(f"Inner capsuleの終了インデックス: {end_index_inner}")
+    if gravity_level_inner_capsule is not None and not gravity_level_inner_capsule.empty:
+        end_index_inner_candidates = np.where(gravity_level_inner_capsule >= end_gravity_level)[0]
+        end_index_inner_candidates = np.array([i for i in end_index_inner_candidates if i >= min_index_inner])
+        if len(end_index_inner_candidates) > 0:
+            end_index_inner = int(end_index_inner_candidates[0])
+            logger.debug(f"Inner capsuleの終了インデックス: {end_index_inner}")
+        else:
+            end_index_inner = len(gravity_level_inner_capsule) - 1
+            logger.warning(f"Inner capsuleの終了点が見つからず、データの最後を使用: {end_index_inner}")
     else:
-        end_index_inner = len(gravity_level_inner_capsule) - 1
-        logger.warning(f"Inner capsuleの終了点が見つからず、データの最後を使用: {end_index_inner}")
+        end_index_inner = -1
+        logger.debug("Inner capsuleの重力データがないため終了インデックスは-1になります。")
 
-    if len(end_index_drag) > 0:
-        end_index_drag = end_index_drag[0]
-        logger.debug(f"Drag shieldの終了インデックス: {end_index_drag}")
+    if gravity_level_drag_shield is not None and not gravity_level_drag_shield.empty:
+        end_index_drag_candidates = np.where(gravity_level_drag_shield >= end_gravity_level)[0]
+        end_index_drag_candidates = np.array([i for i in end_index_drag_candidates if i >= min_index_drag])
+        if len(end_index_drag_candidates) > 0:
+            end_index_drag = int(end_index_drag_candidates[0])
+            logger.debug(f"Drag shieldの終了インデックス: {end_index_drag}")
+        else:
+            end_index_drag = len(gravity_level_drag_shield) - 1
+            logger.warning(f"Drag shieldの終了点が見つからず、データの最後を使用: {end_index_drag}")
     else:
-        end_index_drag = len(gravity_level_drag_shield) - 1
-        logger.warning(f"Drag shieldの終了点が見つからず、データの最後を使用: {end_index_drag}")
+        end_index_drag = -1
+        logger.debug("Drag shieldの重力データがないため終了インデックスは-1になります。")
 
     return end_index_inner, end_index_drag
 
@@ -289,7 +330,18 @@ def filter_data(
     """
     logger.info("データのフィルタリングを開始")
 
-    # データ長をログに記録
+    has_inner = gravity_level_inner_capsule is not None and not gravity_level_inner_capsule.empty
+    has_drag = gravity_level_drag_shield is not None and not gravity_level_drag_shield.empty
+
+    data_lengths: list[int] = []
+    if has_inner:
+        data_lengths.append(len(gravity_level_inner_capsule))
+    if has_drag:
+        data_lengths.append(len(gravity_level_drag_shield))
+
+    if not data_lengths:
+        raise DataProcessingError("Inner Capsule/Drag Shieldの加速度データが見つかりませんでした。")
+
     logger.info(
         f"データサイズ: inner_capsule={len(gravity_level_inner_capsule)}, "
         f"drag_shield={len(gravity_level_drag_shield)}, "
@@ -297,16 +349,18 @@ def filter_data(
     )
 
     # データが不足している場合の警告
-    min_data_length = min(len(gravity_level_inner_capsule), len(gravity_level_drag_shield))
-    if min_data_length < config.get("sampling_rate", 1000) * config.get("window_size", 0.1):
+    required_min_length = config.get("sampling_rate", 1000) * config.get("window_size", 0.1)
+    min_data_length = min(data_lengths)
+    if min_data_length < required_min_length:
         logger.warning(
-            f"データ長が不足しています。最小データ長: {min_data_length}, "
-            f"必要な最小長: {config.get('sampling_rate', 1000) * config.get('window_size', 0.1)}"
+            f"データ長が不足しています。最小データ長: {min_data_length}, 必要な最小長: {required_min_length}"
         )
 
     try:
         # 開始インデックスを検出
-        start_index_inner, start_index_drag = _find_start_indices(time, adjusted_time)
+        start_index_inner, start_index_drag = _find_start_indices(
+            time if has_inner else None, adjusted_time if has_drag else None
+        )
         logger.debug(f"開始インデックス: inner={start_index_inner}, drag={start_index_drag}")
 
         # 開始点からの最小秒数を取得
@@ -314,44 +368,66 @@ def filter_data(
         logger.debug(f"開始点からの最小秒数: {min_seconds_after_start}")
 
         # Inner capsuleのデータで、開始点からmin_seconds_after_start秒後以降のインデックスを計算
-        # インデックスエラーを防止するためのチェックを追加
-        min_time_inner = time.iloc[start_index_inner] + min_seconds_after_start
-        min_indices_inner = np.where(time >= min_time_inner)[0]
-        if len(min_indices_inner) > 0:
-            min_index_inner = min_indices_inner[0]
+        if has_inner:
+            min_time_inner = time.iloc[start_index_inner] + min_seconds_after_start
+            min_indices_inner = np.where(time >= min_time_inner)[0]
+            if len(min_indices_inner) > 0:
+                min_index_inner = int(min_indices_inner[0])
+            else:
+                logger.warning("Inner capsuleの最小時間点が見つかりませんでした。開始インデックスを使用します。")
+                min_index_inner = start_index_inner
+            logger.debug(f"Inner capsuleの最小時間インデックス: {min_index_inner}, 時間: {time.iloc[min_index_inner]}")
         else:
-            logger.warning("Inner capsuleの最小時間点が見つかりませんでした。開始インデックスを使用します。")
             min_index_inner = start_index_inner
-
-        logger.debug(f"Inner capsuleの最小時間インデックス: {min_index_inner}, 時間: {time.iloc[min_index_inner]}")
+            logger.debug("Inner capsuleデータがないため最小時間インデックスは開始インデックスを使用します。")
 
         # Drag shieldのデータで、開始点からmin_seconds_after_start秒後以降のインデックスを計算
-        # インデックスエラーを防止するためのチェックを追加
-        min_time_drag = adjusted_time.iloc[start_index_drag] + min_seconds_after_start
-        min_indices_drag = np.where(adjusted_time >= min_time_drag)[0]
-        if len(min_indices_drag) > 0:
-            min_index_drag = min_indices_drag[0]
+        if has_drag:
+            min_time_drag = adjusted_time.iloc[start_index_drag] + min_seconds_after_start
+            min_indices_drag = np.where(adjusted_time >= min_time_drag)[0]
+            if len(min_indices_drag) > 0:
+                min_index_drag = int(min_indices_drag[0])
+            else:
+                logger.warning("Drag shieldの最小時間点が見つかりませんでした。開始インデックスを使用します。")
+                min_index_drag = start_index_drag
+            logger.debug(
+                f"Drag shieldの最小時間インデックス: {min_index_drag}, 時間: {adjusted_time.iloc[min_index_drag]}"
+            )
         else:
-            logger.warning("Drag shieldの最小時間点が見つかりませんでした。開始インデックスを使用します。")
             min_index_drag = start_index_drag
-
-        logger.debug(f"Drag shieldの最小時間インデックス: {min_index_drag}, 時間: {adjusted_time.iloc[min_index_drag]}")
+            logger.debug("Drag shieldデータがないため最小時間インデックスは開始インデックスを使用します。")
 
         # 終了インデックスを検出
         end_index_inner, end_index_drag = _find_end_indices(
-            gravity_level_inner_capsule,
-            gravity_level_drag_shield,
+            gravity_level_inner_capsule if has_inner else None,
+            gravity_level_drag_shield if has_drag else None,
             min_index_inner,
             min_index_drag,
             config["end_gravity_level"],
         )
 
         # データセットごとに個別にフィルタリング
-        filtered_time = time[start_index_inner : end_index_inner + 1]
-        filtered_gravity_level_inner_capsule = gravity_level_inner_capsule[start_index_inner : end_index_inner + 1]
+        filtered_time = (
+            time[start_index_inner : end_index_inner + 1]
+            if has_inner and end_index_inner >= start_index_inner
+            else pd.Series(dtype=float)
+        )
+        filtered_gravity_level_inner_capsule = (
+            gravity_level_inner_capsule[start_index_inner : end_index_inner + 1]
+            if has_inner and end_index_inner >= start_index_inner
+            else pd.Series(dtype=float)
+        )
 
-        filtered_adjusted_time = adjusted_time[start_index_drag : end_index_drag + 1]
-        filtered_gravity_level_drag_shield = gravity_level_drag_shield[start_index_drag : end_index_drag + 1]
+        filtered_adjusted_time = (
+            adjusted_time[start_index_drag : end_index_drag + 1]
+            if has_drag and end_index_drag >= start_index_drag
+            else pd.Series(dtype=float)
+        )
+        filtered_gravity_level_drag_shield = (
+            gravity_level_drag_shield[start_index_drag : end_index_drag + 1]
+            if has_drag and end_index_drag >= start_index_drag
+            else pd.Series(dtype=float)
+        )
 
         # データサイズをログに記録
         logger.debug(
@@ -360,7 +436,8 @@ def filter_data(
         )
 
         # 統計情報の計算のために全体の終了インデックスを保持
-        end_index = max(end_index_inner, end_index_drag)
+        valid_end_indices = [idx for idx in [end_index_inner, end_index_drag] if idx >= 0]
+        end_index = max(valid_end_indices) if valid_end_indices else -1
 
         return (
             filtered_time,

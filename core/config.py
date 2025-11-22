@@ -6,22 +6,21 @@
 デフォルト値の提供、および設定の保存機能を提供します。
 """
 
+from __future__ import annotations
+
 import json
 import os
 import shutil
 import sys
+from collections.abc import Callable
 from pathlib import Path
 from typing import Any
 
-from PyQt6.QtWidgets import QMessageBox
-
 from core.logger import get_logger, log_exception
+from core.version import APP_VERSION
 
 # ロガーの初期化
 logger = get_logger("config")
-
-# アプリケーションのバージョン情報
-APP_VERSION: str = "9.3.0"
 
 
 def _get_app_root() -> Path:
@@ -30,35 +29,74 @@ def _get_app_root() -> Path:
     return Path(__file__).resolve().parent.parent
 
 
+def _default_user_config_dir() -> Path:
+    if sys.platform == "darwin":
+        return Path.home() / "Library" / "Application Support" / "AAT"
+    if sys.platform == "win32":
+        return Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "AAT"
+    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "AAT"
+
+
 def get_user_config_dir() -> Path:
-    if getattr(sys, "frozen", False):
-        if sys.platform == "darwin":
-            base_dir = Path.home() / "Library" / "Application Support" / "AAT"
-        elif sys.platform == "win32":
-            base_dir = Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "AAT"
-        else:
-            base_dir = Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "AAT"
+    override_dir = os.environ.get("AAT_CONFIG_DIR")
+    base_dir = Path(override_dir).expanduser() if override_dir else _default_user_config_dir()
+    if override_dir:
+        logger.debug("環境変数AAT_CONFIG_DIRでユーザー設定ディレクトリを指定: %s", base_dir)
+
+    try:
         base_dir.mkdir(parents=True, exist_ok=True)
-        return base_dir
-    return Path(__file__).resolve().parent.parent
+    except Exception as exc:  # pragma: no cover - 予期しないパスや権限のためのフォールバック
+        logger.warning("ユーザー設定ディレクトリの作成に失敗しました (%s)。ホーム直下に退避します。", exc)
+        fallback_dir = Path.home() / ".AAT"
+        fallback_dir.mkdir(parents=True, exist_ok=True)
+        return fallback_dir
+
+    return base_dir
 
 
-def load_config() -> dict[str, Any]:
+def _migrate_legacy_config(user_config_path: Path, backup_path: Path) -> None:
+    legacy_dir = _get_app_root()
+    legacy_config_path = legacy_dir / "config.json"
+    legacy_backup_path = legacy_dir / "config.json.bak"
+
+    if user_config_path.exists() or not legacy_config_path.exists():
+        return
+
+    logger.info("旧形式の設定ファイルが見つかりました。新しい保存場所へ移動します: %s", legacy_config_path)
+    try:
+        user_config_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.move(str(legacy_config_path), user_config_path)
+        logger.info("設定ファイルを移動しました: %s -> %s", legacy_config_path, user_config_path)
+
+        if legacy_backup_path.exists() and not backup_path.exists():
+            shutil.move(str(legacy_backup_path), backup_path)
+            logger.info("バックアップファイルも移動しました: %s -> %s", legacy_backup_path, backup_path)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("旧設定ファイルの移行に失敗しました: %s", exc)
+
+
+def load_config(on_warning: Callable[[str], None] | None = None) -> dict[str, Any]:
     """
     設定ファイルを読み込む
 
     1. config/config.default.jsonからデフォルト設定を読み込み
-    2. config.jsonからユーザー設定を読み込み（存在する場合）
+    2. ユーザー設定ディレクトリ（環境変数AAT_CONFIG_DIRで上書き可）のconfig.jsonを読み込み
     3. ユーザー設定が存在しない場合は、デフォルト設定をコピーして作成
+       旧仕様のconfig.jsonがアプリケーションルートにある場合は自動で移行
 
     Returns:
         dict: 設定情報を含む辞書
     """
+    warn = on_warning or (lambda msg: logger.warning("%s", msg))
+
     app_root = _get_app_root()
     default_config_path = app_root / "config" / "config.default.json"
 
     user_config_dir = get_user_config_dir()
     user_config_path = user_config_dir / "config.json"
+    backup_path = user_config_dir / "config.json.bak"
+
+    _migrate_legacy_config(user_config_path, backup_path)
 
     logger.debug(f"デフォルト設定ファイルのパス: {default_config_path}")
     logger.debug(f"ユーザー設定ファイルのパス: {user_config_path}")
@@ -76,6 +114,8 @@ def load_config() -> dict[str, Any]:
             "time_column": "データセット1:時間(s)",
             "acceleration_column_inner_capsule": "データセット1:Z-axis acceleration 1(m/s²)",
             "acceleration_column_drag_shield": "データセット1:Z-axis acceleration 2(m/s²)",
+            "use_inner_acceleration": True,
+            "use_drag_acceleration": True,
             "sampling_rate": 1000,
             "gravity_constant": 9.797578,
             "ylim_min": -1,
@@ -90,6 +130,8 @@ def load_config() -> dict[str, Any]:
             "auto_calculate_g_quality": True,
             "use_cache": True,
             "default_graph_duration": 1.45,
+            "graph_sensor_mode": "both",
+            "theme": "system",
             "export_figure_width": 10,
             "export_figure_height": 6,
             "export_dpi": 300,
@@ -135,17 +177,13 @@ def load_config() -> dict[str, Any]:
         logger.info("デフォルト設定を使用します")
     except json.JSONDecodeError as e:
         logger.error(f"ユーザー設定ファイルの解析に失敗しました: {e}")
-        QMessageBox.warning(
-            None,
-            "設定ファイルエラー",
-            f"ユーザー設定ファイルの解析に失敗しました: {user_config_path}\nデフォルト設定を使用します。",
-        )
+        warn(f"ユーザー設定ファイルの解析に失敗しました: {user_config_path}\nデフォルト設定を使用します。")
 
     logger.debug(f"最終的な設定: {default_config}")
     return default_config
 
 
-def save_config(config: dict[str, Any]) -> bool:
+def save_config(config: dict[str, Any], on_error: Callable[[str], None] | None = None) -> bool:
     """
     設定ファイルを保存する
 
@@ -158,6 +196,8 @@ def save_config(config: dict[str, Any]) -> bool:
     Returns:
         bool: 保存に成功した場合はTrue、失敗した場合はFalse
     """
+    notify_error = on_error or (lambda msg: logger.warning("%s", msg))
+
     user_config_dir = get_user_config_dir()
     config_path = user_config_dir / "config.json"
     backup_path = user_config_dir / "config.json.bak"
@@ -192,5 +232,5 @@ def save_config(config: dict[str, Any]) -> bool:
             except Exception as e2:
                 log_exception(e2, "バックアップからの復元に失敗しました")
 
-        QMessageBox.warning(None, "設定保存エラー", f"設定の保存中にエラーが発生しました: {e}")
+        notify_error(f"設定の保存中にエラーが発生しました: {e}")
         return False

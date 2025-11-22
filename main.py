@@ -4,7 +4,7 @@ Acceleration Analysis Tool (AAT)
 微小重力環境下での実験データを分析するためのメインアプリケーション
 
 このモジュールはアプリケーションのエントリーポイントです。
-PyQt6ベースのGUIを起動し、CSVデータからの重力レベル分析を実行します。
+PySide6ベースのGUIを起動し、CSVデータからの重力レベル分析を実行します。
 """
 
 import os
@@ -58,10 +58,11 @@ if sys.platform == "darwin":
         # プログラム終了時にstderrを復元
         atexit.register(lambda: setattr(sys, "stderr", original_stderr))
 
-from PyQt6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtWidgets import QApplication, QMessageBox
 
 from core.config import get_user_config_dir
 from core.logger import get_logger, log_exception
+from core.version import APP_VERSION
 
 user_config_dir = get_user_config_dir()
 mpl_config_dir: Optional[Path] = None
@@ -127,8 +128,8 @@ def main():
         logger.info("QApplication 初期化完了")
 
         # アプリケーション設定
-        app.setApplicationName("AAT")
-        app.setApplicationVersion("9.3.0")
+        app.setApplicationName("AAT (Acceleration Analysis Tool)")
+        app.setApplicationVersion(APP_VERSION)
         app.setOrganizationName("AAT Development Team")
 
         from gui.main_window import MainWindow

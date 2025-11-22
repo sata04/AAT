@@ -1,10 +1,10 @@
 # Repository Guidelines
 
 ## Project Structure & Module Organization
-- `main.py`: Application entry point (PyQt6 GUI).
+- `main.py`: Application entry point (PySide6 GUI).
 - `core/`: Core logic (data loading, statistics, export, logging, config, exceptions).
 - `gui/`: UI layer (main window, workers, dialogs).
-- `config/`: `config.default.json` template. User-specific `config.json` is optional and git-ignored.
+- `config/`: `config.default.json` template. User-specific `config.json` lives under the OS config dir (`get_user_config_dir` / `AAT_CONFIG_DIR` override); legacy repo-local copies remain git-ignored.
 - `docs/`: Developer and testing guides. Tests are not present yet; when adding, create `tests/` (pytest is configured to look there).
 - Outputs: written under `results_AAT/` (graphs, Excel, caches). Do not commit.
 
@@ -30,10 +30,10 @@
 - Focus: prioritize `core/` coverage; use signals/behavior assertions for GUI.
 
 ## Commit & Pull Request Guidelines
-- Use Conventional Commits: e.g., `feat:`, `fix:`, `chore:`, `chore(release): 9.3.0`.
+- Use Conventional Commits: e.g., `feat:`, `fix:`, `chore:`, `chore(release): 10.0.0`.
 - PRs: clear description, linked issues, reproduction steps; include before/after screenshots for GUI changes.
 - Checklist: ruff clean, formatted, tests pass locally, no artifacts committed (`results_AAT/`, caches, `config.json`).
 
 ## Security & Configuration Tips
-- Do not commit secrets or user-specific settings; copy `config/config.default.json` to `config.json` locally if needed.
+- Do not commit secrets or user-specific settings; use the default template and write the user config into the OS config dir (or the path from `AAT_CONFIG_DIR`) instead of the repo.
 - Prefer relative paths; large data should be outside the repo or git-ignored.

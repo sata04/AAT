@@ -7,7 +7,7 @@ UIブロックを防止するためのバックグラウンド処理用のワー
 """
 
 import numpy as np
-from PyQt6.QtCore import QThread, pyqtSignal
+from PySide6.QtCore import QThread, Signal
 
 from core.logger import get_logger, log_exception
 from core.statistics import calculate_statistics
@@ -25,10 +25,10 @@ class GQualityWorker(QThread):
     """
 
     # シグナル定義
-    progress = pyqtSignal(int)  # 進捗更新用シグナル (0-100%)
-    status_update = pyqtSignal(str)  # 状態更新用シグナル
-    overall_progress = pyqtSignal(int, int)  # 全体の進捗用シグナル (現在のファイル, 総ファイル数)
-    finished = pyqtSignal(list)  # 結果送信用シグナル
+    progress = Signal(int)  # 進捗更新用シグナル (0-100%)
+    status_update = Signal(str)  # 状態更新用シグナル
+    overall_progress = Signal(int, int)  # 全体の進捗用シグナル (現在のファイル, 総ファイル数)
+    finished = Signal(list)  # 結果送信用シグナル
 
     def __init__(
         self,
@@ -101,8 +101,9 @@ class GQualityWorker(QThread):
             # データサイズの事前チェック
             data_length_inner = len(self.filtered_gravity_level_inner_capsule)
             data_length_drag = len(self.filtered_gravity_level_drag_shield)
-            min_data_length = min(data_length_inner, data_length_drag)
             sampling_rate = self.config.get("sampling_rate", 1000)
+            has_inner = data_length_inner > 0
+            has_drag = data_length_drag > 0
 
             logger.info(
                 f"G-quality解析開始: inner_capsule={data_length_inner}, "
@@ -120,9 +121,22 @@ class GQualityWorker(QThread):
 
             # データが最小ウィンドウサイズにも満たない場合の警告
             min_window_samples = int(self.config["g_quality_start"] * sampling_rate)
-            if min_data_length < min_window_samples:
+            if not has_inner and not has_drag:
                 logger.warning(
-                    f"データ長 ({min_data_length}) が最小ウィンドウサイズ ({min_window_samples} samples) "
+                    "Inner Capsule/Drag Shieldのどちらのデータも存在しないため、G-quality解析をスキップします"
+                )
+                self.status_update.emit("データが存在しないため、G-quality解析をスキップしました")
+                self.g_quality_data = []
+                self.finished.emit([])
+                return
+
+            # 片側しかない場合でも、残ったセンサーで解析を続行する
+            enough_data = (has_inner and data_length_inner >= min_window_samples) or (
+                has_drag and data_length_drag >= min_window_samples
+            )
+            if not enough_data:
+                logger.warning(
+                    f"データ長が最小ウィンドウサイズ ({min_window_samples} samples) "
                     f"より小さいため、G-quality解析をスキップします"
                 )
                 self.status_update.emit("データが不十分なため、G-quality解析をスキップしました")
@@ -148,39 +162,54 @@ class GQualityWorker(QThread):
                     )
 
                 # Inner CapsuleとDrag Shieldの両方について統計を計算
-                try:
-                    (
-                        min_mean_inner_capsule,
-                        min_time_inner_capsule,
-                        min_std_inner_capsule,
-                    ) = calculate_statistics(
-                        self.filtered_gravity_level_inner_capsule,
-                        self.filtered_time,
-                        {
-                            "window_size": window_size,
-                            "sampling_rate": self.config["sampling_rate"],
-                        },
-                    )
-                    min_mean_drag_shield, min_time_drag_shield, min_std_drag_shield = calculate_statistics(
-                        self.filtered_gravity_level_drag_shield,
-                        self.filtered_adjusted_time,
-                        {
-                            "window_size": window_size,
-                            "sampling_rate": self.config["sampling_rate"],
-                        },
-                    )
-                except Exception as e:
-                    log_exception(e, f"ウィンドウサイズ {window_size}秒 での統計計算中にエラー")
-                    continue
+                min_mean_inner_capsule = None
+                min_time_inner_capsule = None
+                min_std_inner_capsule = None
+                min_mean_drag_shield = None
+                min_time_drag_shield = None
+                min_std_drag_shield = None
 
-                # 計算結果が有効な場合のみデータに追加
-                if (
-                    min_mean_inner_capsule is not None
-                    and min_time_inner_capsule is not None
-                    and min_std_inner_capsule is not None
-                    and min_mean_drag_shield is not None
-                    and min_time_drag_shield is not None
-                    and min_std_drag_shield is not None
+                try:
+                    if has_inner and data_length_inner >= int(window_size * sampling_rate):
+                        (
+                            min_mean_inner_capsule,
+                            min_time_inner_capsule,
+                            min_std_inner_capsule,
+                        ) = calculate_statistics(
+                            self.filtered_gravity_level_inner_capsule,
+                            self.filtered_time,
+                            {
+                                "window_size": window_size,
+                                "sampling_rate": self.config["sampling_rate"],
+                            },
+                        )
+                except Exception as e:
+                    log_exception(e, f"Inner Capsule: ウィンドウサイズ {window_size}秒 での統計計算中にエラー")
+
+                try:
+                    if has_drag and data_length_drag >= int(window_size * sampling_rate):
+                        (
+                            min_mean_drag_shield,
+                            min_time_drag_shield,
+                            min_std_drag_shield,
+                        ) = calculate_statistics(
+                            self.filtered_gravity_level_drag_shield,
+                            self.filtered_adjusted_time,
+                            {
+                                "window_size": window_size,
+                                "sampling_rate": self.config["sampling_rate"],
+                            },
+                        )
+                except Exception as e:
+                    log_exception(e, f"Drag Shield: ウィンドウサイズ {window_size}秒 での統計計算中にエラー")
+
+                # いずれかの計算結果が有効な場合のみデータに追加
+                if any(
+                    value is not None
+                    for value in [
+                        min_mean_inner_capsule,
+                        min_mean_drag_shield,
+                    ]
                 ):
                     g_quality_data.append(
                         (
@@ -204,7 +233,7 @@ class GQualityWorker(QThread):
             # 有効なデータが存在しない場合の処理
             if not g_quality_data:
                 logger.warning(
-                    f"すべてのウィンドウサイズで有効な統計が計算できませんでした。"
+                    "すべてのウィンドウサイズで有効な統計が計算できませんでした。"
                     f"データ長: inner={data_length_inner}, drag={data_length_drag}"
                 )
                 self.status_update.emit("有効な統計データが得られませんでした")

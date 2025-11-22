@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Overview
 
-AAT (Acceleration Analysis Tool) v9.3.0 is a Python desktop application for analyzing experimental data in microgravity environments. It processes acceleration data from Inner Capsule and Drag Shield sensors, calculates gravity levels, and performs statistical analysis to evaluate microgravity quality using a PyQt6 GUI with interactive graphing capabilities.
+AAT (Acceleration Analysis Tool) v10.0.0 is a Python desktop application for analyzing experimental data in microgravity environments. It processes acceleration data from Inner Capsule and Drag Shield sensors, calculates gravity levels, and performs statistical analysis to evaluate microgravity quality using a PySide6 GUI with interactive graphing capabilities.
 
 ## Essential Commands
 
@@ -62,7 +62,7 @@ uv run pre-commit run --all-files    # Run all checks manually
 ### Package Management
 The project uses `pyproject.toml` for dependency management with **uv** as the recommended package manager:
 - **Package Manager**: uv (fast Python package installer and resolver)
-- Core dependencies: PyQt6, matplotlib, numpy, pandas, openpyxl, tables
+- Core dependencies: PySide6, matplotlib, numpy, pandas, openpyxl, tables
 - Dev dependencies: ruff, pytest, pytest-cov, pytest-qt, pytest-mock
 - Python requirement: >=3.9
 
@@ -86,9 +86,8 @@ The project uses `pyproject.toml` for dependency management with **uv** as the r
 ```
 AAT/
 ├── main.py                          # Application entry point with macOS-specific handling
-├── config.json                      # Runtime configuration (user-specific)
 ├── config/
-│   └── config.default.json          # Default configuration template
+│   └── config.default.json          # Default configuration template (user config lives in OS config dir)
 ├── pyproject.toml                   # Modern Python packaging and dependencies
 ├── .pre-commit-config.yaml          # Code quality automation
 ├── core/                            # Core processing logic (GUI-agnostic)
@@ -116,7 +115,7 @@ AAT/
 
 **Intelligent Caching**: Processed data is cached in `results_AAT/cache/` using pickle and HDF5 formats. Cache invalidation occurs when source files, settings, or app version changes.
 
-**Configuration Management**: JSON-based config with version tracking (`app_version` field) ensures backward compatibility. Default values are defined in `core/config.py:36-60`.
+**Configuration Management**: JSON-based config stored under the OS config dir returned by `core.config.get_user_config_dir()` (override via `AAT_CONFIG_DIR`) with version tracking (`app_version` field) for backward compatibility. Default values are defined in `core/config.py:36-60`.
 
 **Error Handling**: Custom exception hierarchy (`core/exceptions.py`) with:
 - Base `AATException` class for all application errors
@@ -135,7 +134,7 @@ AAT/
 
 ### Key Configuration Parameters
 
-Critical settings in `config.json`:
+Critical settings in the user config (`config.json` under the OS config dir):
 - `sampling_rate`: Data frequency (default: 1000 Hz) - affects all time-based calculations
 - `gravity_constant`: Reference gravity value (default: 9.797578 m/s²)
 - `acceleration_threshold`: Sync point detection threshold (default: 0.5 m/s²)
@@ -147,7 +146,7 @@ Critical settings in `config.json`:
 
 ### Threading and Performance
 
-**Background Processing**: G-quality analysis runs in `GQualityWorker` threads to prevent UI blocking. Progress is reported via PyQt signals.
+**Background Processing**: G-quality analysis runs in `GQualityWorker` threads to prevent UI blocking. Progress is reported via PySide6 signals.
 
 **Cache Strategy**: Two-tier caching:
 - Processed DataFrames cached as pickle files
@@ -158,7 +157,7 @@ Critical settings in `config.json`:
 
 ### Platform-Specific Considerations
 
-**macOS Compatibility**: Special handling for PyQt6 warnings and TSM errors in `main.py:16-24`. Debug mode can be enabled with `AAT_DEBUG=1` environment variable.
+**macOS Compatibility**: Special handling for PySide6 warnings and TSM errors in `main.py:16-24`. Debug mode can be enabled with `AAT_DEBUG=1` environment variable.
 
 **CI/CD Environment**: GitHub Actions workflow includes:
 - X11 libraries for headless GUI testing (xvfb-run)
@@ -178,7 +177,7 @@ Critical settings in `config.json`:
 
 ### Development Notes
 
-**Configuration Changes**: When modifying data processing logic, increment `APP_VERSION` in `core/config.py:21` to invalidate existing caches.
+**Configuration Changes**: When modifying data processing logic, bump `[project].version` in `pyproject.toml` (surfaced via `core/version.py:APP_VERSION`) to invalidate existing caches.
 
 **Adding New Statistics**: Statistical calculations are centralized in `core/statistics.py`. The `calculate_statistics()` function handles sliding window analysis.
 
@@ -262,7 +261,7 @@ uv run pre-commit run --all-files    # Test hooks
 **GitHub Actions CI/CD**: Automated checks on push/PR to main and develop branches:
 - Ruff linting and formatting validation (uses uv for fast installation)
 - Basic import validation
-- Runs in Ubuntu with GUI dependencies for PyQt6
+- Runs in Ubuntu with GUI dependencies for PySide6
 
 ### Troubleshooting Reference
 
@@ -270,4 +269,4 @@ See README.md for detailed troubleshooting guide including:
 - CSV file format requirements and encoding issues
 - Column detection problems and manual selection
 - Cache-related issues and clearing procedures
-- Platform-specific PyQt6 installation problems
+- Platform-specific PySide6 installation problems

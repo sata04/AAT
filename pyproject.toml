@@ -1,13 +1,13 @@
 [project]
 name = "AAT"
-version = "9.3.0"
+version = "10.0.0"
 description = "Acceleration Analysis Tool for microgravity experiments"
 authors = [
     {name = "AAT Development Team"}
 ]
 requires-python = ">=3.9"
 dependencies = [
-    "PyQt6",
+    "PySide6",
     "matplotlib",
     "numpy",
     "pandas",
@@ -131,4 +131,4 @@ markers = [
     "slow: marks tests as slow (deselect with '-m \"not slow\"')",
     "gui: marks tests that require GUI (Qt) functionality",
 ]
-qt_api = "pyqt6"
+qt_api = "pyside6"

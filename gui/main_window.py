@@ -9,11 +9,12 @@
 
 import os
 import sys
+from pathlib import Path
 
 # matplotlib バックエンドを明示的に設定（GUI用）
 import matplotlib
 
-matplotlib.use("Qt5Agg")  # PyQt6でも互換性があるQt5Aggを使用
+matplotlib.use("qtagg")  # PySide6対応のバックエンドを使用
 import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
@@ -21,32 +22,42 @@ from matplotlib import font_manager
 from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.widgets import SpanSelector
-from PyQt6.QtCore import QMutex, Qt, QTimer
-from PyQt6.QtGui import QAction
-from PyQt6.QtWidgets import (
+from PySide6.QtCore import QMutex, Qt, QTimer
+from PySide6.QtGui import QAction, QActionGroup, QKeySequence
+from PySide6.QtWidgets import (
     QApplication,
+    QCheckBox,
     QComboBox,
     QFileDialog,
     QHBoxLayout,
+    QHeaderView,
     QLabel,
     QMainWindow,
     QMessageBox,
     QProgressBar,
     QPushButton,
+    QSizePolicy,
     QSplitter,
+    QStackedLayout,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
     QWidget,
 )
 
-from core.config import APP_VERSION, load_config, save_config
-from core.data_processor import filter_data, load_and_process_data
+from core.cache_manager import delete_cache
+from core.config import load_config, save_config
+from core.data_processor import detect_columns, filter_data, load_and_process_data
+from core.exceptions import ColumnNotFoundError
 from core.export import create_output_directories, export_data, export_g_quality_data
 from core.logger import get_logger, log_exception
+from core.paths import resolve_base_dir
 from core.statistics import calculate_statistics
+from core.version import APP_VERSION
 from gui.column_selector_dialog import ColumnSelectorDialog
 from gui.settings_dialog import SettingsDialog
+from gui.styles import Colors, ThemeType, apply_theme, get_toggle_checkbox_styles
+from gui.widgets import ToggleSwitch
 from gui.workers import GQualityWorker
 
 # メインウィンドウ用のロガーを初期化
@@ -74,12 +85,21 @@ class MainWindow(QMainWindow):
         # Qtメッセージの抑制
         self._suppress_qt_messages()
 
+        # 設定の読み込み（テーマ適用前に必要）
+        self.config = load_config(on_warning=self._notify_warning)
+
+        # テーマ状態の初期化（UI構築より前に必要）
+        self.current_theme_type = ThemeType.from_config(self.config.get("theme"))
+
+        # テーマの適用
+        apply_theme(QApplication.instance(), self.current_theme_type)
+
         # 日本語フォント設定
         self._setup_japanese_font()
 
         # ウィンドウの基本設定
-        self.setWindowTitle("Gravity Level Analysis")
-        self.setGeometry(100, 100, 1200, 800)
+        self.setWindowTitle("AAT (Acceleration Analysis Tool)")
+        self.resize(1280, 850)
 
         # UI要素の初期化
         self._setup_ui()
@@ -87,8 +107,28 @@ class MainWindow(QMainWindow):
 
         # データと状態の初期化
         self._initialize_data()
+        self._update_data_dependent_controls()
 
         logger.info("メインウィンドウの初期化が完了しました")
+
+    # ------------------------------------------------
+    # 通知/確認ハンドラー（coreとの橋渡し）
+    # ------------------------------------------------
+
+    def _confirm_overwrite(self, path: Path) -> bool:
+        reply = QMessageBox.question(
+            self,
+            "確認",
+            f"出力ファイルが既に存在します:\n{path}\n上書きしますか？",
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+        )
+        return reply == QMessageBox.StandardButton.Yes
+
+    def _notify_warning(self, message: str) -> None:
+        QMessageBox.warning(self, "警告", message)
+
+    def _notify_info(self, message: str) -> None:
+        QMessageBox.information(self, "保存完了", message)
 
     # ------------------------------------------------
     # 初期設定関連メソッド
@@ -122,112 +162,268 @@ class MainWindow(QMainWindow):
                         font_prop = font_manager.FontProperties(fname=font_path)
                         plt.rcParams["font.family"] = font_prop.get_name()
                         break
+
+            # Matplotlibのデフォルトフォントサイズを調整
+            plt.rcParams["font.size"] = 10
+            plt.rcParams["axes.titlesize"] = 12
+            plt.rcParams["axes.labelsize"] = 10
+
         except Exception as e:
             log_exception(e, "フォント設定中にエラー")
             # フォント設定に失敗した場合はデフォルトフォントを使用
             plt.rcParams["font.family"] = "sans-serif"
             logger.info("デフォルトフォントにフォールバック: sans-serif")
 
+    def _create_badge(self, text, object_name="Badge"):
+        """
+        シンプルなバッジラベルを生成する
+        """
+        badge = QLabel(text)
+        badge.setObjectName(object_name)
+        badge.setContentsMargins(10, 4, 10, 4)
+        return badge
+
+    def _set_badge(self, badge: QLabel, text: str, object_name: str):
+        """
+        バッジのテキストとスタイルを更新する
+        """
+        badge.setText(text)
+        badge.setObjectName(object_name)
+        # Reapply style so the changed object name takes effect immediately
+        badge.style().unpolish(badge)
+        badge.style().polish(badge)
+
     def _setup_ui(self):
         """
         UIコンポーネントを初期化する
         """
+        from PySide6.QtWidgets import QFrame
+
         # メインウィジェットとレイアウトの設定
         self.central_widget = QWidget()
         self.setCentralWidget(self.central_widget)
         self.main_layout = QVBoxLayout(self.central_widget)
+        self.main_layout.setContentsMargins(20, 20, 20, 20)
+        self.main_layout.setSpacing(20)
 
-        # ステータスラベルの追加
+        # --- ヘッダーセクション ---
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(12)
+
+        # タイトルとステータス
+        title_layout = QVBoxLayout()
+        title_layout.setSpacing(6)
+        title_label = QLabel("AAT (Acceleration Analysis Tool)")
+        title_label.setObjectName("Header")
         self.status_label = QLabel("ファイルを選択してください")
-        self.main_layout.addWidget(self.status_label)
+        self.status_label.setObjectName("Status")
+        title_layout.addWidget(title_label)
+        title_layout.addWidget(self.status_label)
 
-        # 処理状況表示ラベルの追加
+        badge_row = QHBoxLayout()
+        badge_row.setSpacing(8)
+        self.dataset_badge = self._create_badge("ファイル未選択", "BadgeMuted")
+        self.mode_badge = self._create_badge("通常モード", "BadgeInfo")
+        self.view_badge = self._create_badge("表示: トリミング", "BadgeMuted")
+        self.theme_badge = self._create_badge("テーマ: システム", "BadgeMuted")
+        badge_row.addWidget(self.dataset_badge)
+        badge_row.addWidget(self.mode_badge)
+        badge_row.addWidget(self.view_badge)
+        badge_row.addWidget(self.theme_badge)
+        badge_row.addStretch()
+        title_layout.addLayout(badge_row)
+
+        header_layout.addLayout(title_layout)
+
+        header_layout.addStretch()
+
+        # 処理状況表示
         self.processing_status_label = QLabel("")
+        self.processing_status_label.setObjectName("Status")
+        self.processing_status_label.setWordWrap(True)
         self.processing_status_label.setVisible(False)
-        self.main_layout.addWidget(self.processing_status_label)
+        header_layout.addWidget(self.processing_status_label)
 
-        # ボタンレイアウトの設定
-        button_layout = QHBoxLayout()
+        self.main_layout.addLayout(header_layout)
 
-        # ファイル選択ボタン
+        # --- コントロールパネル ---
+        control_panel = QFrame()
+        control_panel.setObjectName("Container")
+        control_layout = QHBoxLayout(control_panel)
+        control_layout.setContentsMargins(15, 15, 15, 15)
+        control_layout.setSpacing(15)
+
+        # ファイル操作グループ
+        file_group = QHBoxLayout()
         select_button = QPushButton("CSVファイルを選択")
         select_button.clicked.connect(self.select_and_process_file)
-        button_layout.addWidget(select_button)
+        select_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        file_group.addWidget(select_button)
 
-        # 比較モードボタン
         self.compare_button = QPushButton("複数ファイルを比較")
+        self.compare_button.setObjectName("Secondary")
         self.compare_button.clicked.connect(self.toggle_comparison)
-        button_layout.addWidget(self.compare_button)
+        self.compare_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.compare_button.setEnabled(False)
+        file_group.addWidget(self.compare_button)
 
-        # G-quality評価モードボタン
-        self.g_quality_mode_button = QPushButton("G-quality評価モード")
+        control_layout.addLayout(file_group)
+
+        # 区切り線
+        line = QFrame()
+        line.setFrameShape(QFrame.Shape.VLine)
+        line.setFrameShadow(QFrame.Shadow.Sunken)
+        line.setStyleSheet(f"background-color: {Colors.BORDER}; width: 1px;")
+        control_layout.addWidget(line)
+
+        # 解析・表示グループ
+        analysis_group = QHBoxLayout()
+
+        self.g_quality_mode_button = QPushButton("G-quality評価")
+        self.g_quality_mode_button.setObjectName("Secondary")
         self.g_quality_mode_button.setCheckable(True)
         self.g_quality_mode_button.clicked.connect(self.toggle_g_quality_mode)
-        button_layout.addWidget(self.g_quality_mode_button)
+        self.g_quality_mode_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.g_quality_mode_button.setEnabled(False)
+        analysis_group.addWidget(self.g_quality_mode_button)
 
-        # 進行度バーのレイアウト
-        progress_layout = QVBoxLayout()
-
-        # ファイル単位の進捗バー
-        self.file_progress_label = QLabel("ファイル処理進捗:")
-        self.file_progress_label.setVisible(False)
-        progress_layout.addWidget(self.file_progress_label)
-
-        self.file_progress_bar = QProgressBar(self)
-        self.file_progress_bar.setVisible(False)
-        progress_layout.addWidget(self.file_progress_bar)
-
-        # 全体の進捗バー
-        self.progress_label = QLabel("全体進捗:")
-        self.progress_label.setVisible(False)
-        progress_layout.addWidget(self.progress_label)
-
-        self.progress_bar = QProgressBar(self)
-        self.progress_bar.setVisible(False)
-        progress_layout.addWidget(self.progress_bar)
-
-        self.main_layout.addLayout(progress_layout)
-
-        # 全データ表示ボタン
         self.show_all_button = QPushButton("全体を表示")
+        self.show_all_button.setObjectName("Secondary")
         self.show_all_button.setCheckable(True)
         self.show_all_button.clicked.connect(self.toggle_show_all_data)
-        button_layout.addWidget(self.show_all_button)
+        self.show_all_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.show_all_button.setEnabled(False)
+        analysis_group.addWidget(self.show_all_button)
 
-        # 設定ボタン
+        control_layout.addLayout(analysis_group)
+
+        control_layout.addStretch()
+
+        # 設定・ツールグループ
+        tools_group = QHBoxLayout()
+
+        self.dataset_selector = QComboBox()
+        self.dataset_selector.setMinimumWidth(200)
+        self.dataset_selector.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.dataset_selector.setMinimumContentsLength(16)
+        self.dataset_selector.setSizeAdjustPolicy(QComboBox.SizeAdjustPolicy.AdjustToMinimumContentsLengthWithIcon)
+        self.dataset_selector.currentIndexChanged.connect(self.update_selected_dataset)
+        tools_group.addWidget(self.dataset_selector)
+
         settings_button = QPushButton("設定")
+        settings_button.setObjectName("Secondary")
         settings_button.clicked.connect(self.open_settings)
-        button_layout.addWidget(settings_button)
+        settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        tools_group.addWidget(settings_button)
 
-        # キャッシュクリアボタン
         clear_cache_button = QPushButton("キャッシュクリア")
+        clear_cache_button.setObjectName("Secondary")
         clear_cache_button.clicked.connect(self.clear_cache)
-        button_layout.addWidget(clear_cache_button)
+        clear_cache_button.setCursor(Qt.CursorShape.PointingHandCursor)
+        tools_group.addWidget(clear_cache_button)
 
-        self.main_layout.addLayout(button_layout)
+        control_layout.addLayout(tools_group)
 
-        # グラフとテーブルを含むスプリッターの設定
+        self.main_layout.addWidget(control_panel)
+
+        # --- プログレスバー ---
+        self.progress_container = QWidget()
+        self.progress_container.setObjectName("Container")
+        progress_layout = QVBoxLayout(self.progress_container)
+        progress_layout.setContentsMargins(12, 12, 12, 12)
+        progress_layout.setSpacing(5)
+
+        # ファイル単位の進捗
+        file_progress_layout = QHBoxLayout()
+        self.file_progress_label = QLabel("ファイル処理:")
+        self.file_progress_label.setObjectName("Status")
+        self.file_progress_bar = QProgressBar()
+        file_progress_layout.addWidget(self.file_progress_label)
+        file_progress_layout.addWidget(self.file_progress_bar)
+        progress_layout.addLayout(file_progress_layout)
+
+        # 全体の進捗
+        total_progress_layout = QHBoxLayout()
+        self.progress_label = QLabel("全体進捗:")
+        self.progress_label.setObjectName("Status")
+        self.progress_bar = QProgressBar()
+        total_progress_layout.addWidget(self.progress_label)
+        total_progress_layout.addWidget(self.progress_bar)
+        progress_layout.addLayout(total_progress_layout)
+
+        self.progress_container.setVisible(False)
+        self.main_layout.addWidget(self.progress_container)
+
+        # --- メインコンテンツ (グラフとテーブル) ---
         splitter = QSplitter(Qt.Orientation.Vertical)
+        splitter.setHandleWidth(2)
         self.main_layout.addWidget(splitter)
 
-        # グラフウィジェットの設定
-        self.figure = plt.figure(figsize=(10, 6))
+        # グラフウィジェット
+        graph_container = QFrame()
+        graph_container.setObjectName("Container")
+        graph_layout = QVBoxLayout(graph_container)
+        graph_layout.setContentsMargins(0, 0, 0, 0)
+        graph_layout.setSpacing(0)
+
+        # Matplotlibのスタイル設定
+        self.figure = plt.figure(figsize=(10, 6), facecolor=Colors.BG_SECONDARY)
         self.canvas = FigureCanvas(self.figure)
+        self._set_canvas_background()
         self.toolbar = NavigationToolbar(self.canvas, self)
-        graph_widget = QWidget()
-        graph_layout = QVBoxLayout(graph_widget)
-        graph_layout.addWidget(self.toolbar)
-        graph_layout.addWidget(self.canvas)
-        splitter.addWidget(graph_widget)
+        self.toolbar.setStyleSheet("background-color: transparent; border: none;")
+        # Matplotlibのサブプロット設定ダイアログなどにテーマを適用するためのフック
+        self.toolbar.actionTriggered.connect(self._on_toolbar_action_triggered)
 
-        # データセット選択用コンボボックス
-        self.dataset_selector = QComboBox()
-        self.dataset_selector.currentIndexChanged.connect(self.update_selected_dataset)
-        button_layout.addWidget(self.dataset_selector)
+        graph_panel = QWidget()
+        graph_panel_layout = QVBoxLayout(graph_panel)
+        graph_panel_layout.setContentsMargins(0, 0, 0, 0)
+        graph_panel_layout.setSpacing(6)
+        graph_panel_layout.addWidget(self.toolbar)
+        graph_panel_layout.addWidget(self.canvas)
 
-        # データテーブルの設定
+        self.empty_state = QWidget()
+        empty_state_layout = QVBoxLayout(self.empty_state)
+        empty_state_layout.setContentsMargins(24, 32, 24, 32)
+        empty_state_layout.setSpacing(10)
+        empty_state_layout.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_title = QLabel("まだデータがありません")
+        self.empty_title.setObjectName("EmptyStateTitle")
+        self.empty_text = QLabel(
+            "CSVファイルを読み込んでグラフと統計を表示してください。\n複数ファイルもまとめて追加できます。"
+        )
+        self.empty_text.setObjectName("Status")
+        self.empty_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
+        self.empty_text.setWordWrap(True)
+        empty_button = QPushButton("CSVファイルを選択")
+        empty_button.clicked.connect(self.select_and_process_file)
+        empty_state_layout.addWidget(self.empty_title, alignment=Qt.AlignmentFlag.AlignHCenter)
+        empty_state_layout.addWidget(self.empty_text)
+        empty_state_layout.addWidget(empty_button, alignment=Qt.AlignmentFlag.AlignHCenter)
+
+        self.graph_stack = QStackedLayout()
+        self.graph_stack.setContentsMargins(0, 0, 0, 0)
+        self.graph_stack.addWidget(self.empty_state)
+        self.graph_stack.addWidget(graph_panel)
+        self.graph_stack.setCurrentWidget(self.empty_state)
+
+        graph_layout.addLayout(self.graph_stack)
+        splitter.addWidget(graph_container)
+
+        # データテーブル
         self.table = QTableWidget()
+        self.table.setAlternatingRowColors(True)
+        self.table.setShowGrid(False)
+        self.table.verticalHeader().setVisible(False)
+        self.table.horizontalHeader().setStretchLastSection(True)
+        self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeMode.Interactive)
+        self.table.setVerticalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
+        self.table.setHorizontalScrollMode(QTableWidget.ScrollMode.ScrollPerPixel)
         splitter.addWidget(self.table)
+
+        # スプリッターの初期サイズ比率設定 (グラフ:テーブル = 2:1)
+        splitter.setStretchFactor(0, 2)
+        splitter.setStretchFactor(1, 1)
 
         # 範囲選択機能の変数を初期化
         self.span_selectors = []
@@ -241,6 +437,76 @@ class MainWindow(QMainWindow):
         if sys.platform == "darwin":
             menubar.setNativeMenuBar(True)
 
+        file_menu = menubar.addMenu("ファイル")
+        if file_menu is not None:
+            self.open_file_action = QAction("CSVファイルを開く...", self)
+            self.open_file_action.setShortcut(QKeySequence.StandardKey.Open)
+            self.open_file_action.triggered.connect(self.select_and_process_file)
+            file_menu.addAction(self.open_file_action)
+
+            file_menu.addSeparator()
+
+            self.exit_action = QAction("終了", self)
+            self.exit_action.setShortcut(QKeySequence.StandardKey.Quit)
+            self.exit_action.triggered.connect(self.close)
+            file_menu.addAction(self.exit_action)
+
+        view_menu = menubar.addMenu("表示")
+        if view_menu is not None:
+            # Theme Submenu
+            theme_menu = view_menu.addMenu("テーマ")
+
+            self.theme_action_group = QActionGroup(self)
+
+            self.system_theme_action = QAction("システムデフォルト", self)
+            self.system_theme_action.setCheckable(True)
+            self.system_theme_action.setChecked(True)  # Default to System
+            self.system_theme_action.triggered.connect(lambda: self._change_theme(ThemeType.SYSTEM))
+            self.theme_action_group.addAction(self.system_theme_action)
+            theme_menu.addAction(self.system_theme_action)
+
+            self.dark_theme_action = QAction("ダークモード", self)
+            self.dark_theme_action.setCheckable(True)
+            self.dark_theme_action.triggered.connect(lambda: self._change_theme(ThemeType.DARK))
+            self.theme_action_group.addAction(self.dark_theme_action)
+            theme_menu.addAction(self.dark_theme_action)
+
+            self.light_theme_action = QAction("ライトモード", self)
+            self.light_theme_action.setCheckable(True)
+            self.light_theme_action.triggered.connect(lambda: self._change_theme(ThemeType.LIGHT))
+            self.theme_action_group.addAction(self.light_theme_action)
+            theme_menu.addAction(self.light_theme_action)
+
+            view_menu.addSeparator()
+
+            self.compare_action = QAction("比較モード", self)
+            self.compare_action.setCheckable(True)
+            self.compare_action.triggered.connect(self._handle_compare_action)
+            view_menu.addAction(self.compare_action)
+
+            self.show_all_action = QAction("全体を表示", self)
+            self.show_all_action.setCheckable(True)
+            self.show_all_action.triggered.connect(self._handle_show_all_action)
+            view_menu.addAction(self.show_all_action)
+
+        analysis_menu = menubar.addMenu("解析")
+        if analysis_menu is not None:
+            self.g_quality_action = QAction("G-quality評価モード", self)
+            self.g_quality_action.setCheckable(True)
+            self.g_quality_action.triggered.connect(self._handle_g_quality_action)
+            analysis_menu.addAction(self.g_quality_action)
+
+        tools_menu = menubar.addMenu("ツール")
+        if tools_menu is not None:
+            self.settings_action = QAction("設定...", self)
+            self.settings_action.setShortcut(QKeySequence.StandardKey.Preferences)
+            self.settings_action.triggered.connect(self.open_settings)
+            tools_menu.addAction(self.settings_action)
+
+            self.clear_cache_action = QAction("キャッシュをクリア", self)
+            self.clear_cache_action.triggered.connect(self.clear_cache)
+            tools_menu.addAction(self.clear_cache_action)
+
         help_menu = menubar.addMenu("ヘルプ")
         if help_menu is None:
             return
@@ -249,12 +515,166 @@ class MainWindow(QMainWindow):
         about_action.triggered.connect(self._show_about_dialog)
         help_menu.addAction(about_action)
 
+    def _handle_compare_action(self, checked):
+        """メニューの比較モード切替を処理する"""
+        if checked != self.is_comparing:
+            self.toggle_comparison()
+        self._sync_menu_state()
+
+    def _handle_show_all_action(self, checked):
+        """メニューの全体表示切替を処理する"""
+        if self.is_g_quality_mode or not self.show_all_button.isEnabled():
+            self._sync_menu_state()
+            return
+
+        if self.show_all_button.isChecked() != checked:
+            self.show_all_button.setChecked(checked)
+        self.toggle_show_all_data()
+        self._sync_menu_state()
+
+    def _handle_g_quality_action(self, checked):
+        """メニューのG-qualityモード切替を処理する"""
+        if self.g_quality_mode_button.isEnabled():
+            if self.g_quality_mode_button.isChecked() != checked:
+                self.g_quality_mode_button.setChecked(checked)
+            self.toggle_g_quality_mode()
+        self._sync_menu_state()
+
+    def _sync_menu_state(self):
+        """ボタンとメニューの状態を同期する"""
+        dataset_count = len(getattr(self, "processed_data", {}))
+
+        if hasattr(self, "compare_action"):
+            blocked = self.compare_action.blockSignals(True)
+            self.compare_action.setChecked(self.is_comparing)
+            self.compare_action.blockSignals(blocked)
+            self.compare_action.setText(self.compare_button.text())
+            self.compare_action.setEnabled(dataset_count >= 2 or self.is_comparing)
+
+        if hasattr(self, "show_all_action"):
+            blocked = self.show_all_action.blockSignals(True)
+            self.show_all_action.setChecked(self.is_showing_all_data)
+            self.show_all_action.blockSignals(blocked)
+            self.show_all_action.setText(self.show_all_button.text())
+            self.show_all_action.setEnabled(
+                self.show_all_button.isEnabled() and self.show_all_button.isVisible() and not self.is_g_quality_mode
+            )
+
+        if hasattr(self, "g_quality_action"):
+            blocked = self.g_quality_action.blockSignals(True)
+            self.g_quality_action.setChecked(self.is_g_quality_mode)
+            self.g_quality_action.blockSignals(blocked)
+            self.g_quality_action.setText(self.g_quality_mode_button.text())
+            self.g_quality_action.setEnabled(self.g_quality_mode_button.isEnabled())
+
+    def _sync_theme_menu_state(self):
+        """テーマメニューのチェック状態を現在のテーマに合わせる"""
+        actions = {
+            ThemeType.SYSTEM: getattr(self, "system_theme_action", None),
+            ThemeType.DARK: getattr(self, "dark_theme_action", None),
+            ThemeType.LIGHT: getattr(self, "light_theme_action", None),
+        }
+        actions = {theme_type: action for theme_type, action in actions.items() if action is not None}
+        if not actions:
+            return
+
+        target_action = actions.get(self.current_theme_type, actions.get(ThemeType.SYSTEM))
+        for action in actions.values():
+            blocked = action.blockSignals(True)
+            action.setChecked(action is target_action)
+            action.blockSignals(blocked)
+
+    def _update_data_dependent_controls(self):
+        """データ有無に応じて操作可能なコントロールを更新する"""
+        dataset_count = len(getattr(self, "processed_data", {}))
+        has_data = dataset_count > 0
+
+        if not has_data:
+            # データがない場合はモード状態をリセット
+            self.is_comparing = False
+            self.compare_button.setText("複数ファイルを比較")
+            self.is_g_quality_mode = False
+            self.g_quality_mode_button.setChecked(False)
+            self.is_showing_all_data = False
+            self.show_all_button.setChecked(False)
+
+        self.g_quality_mode_button.setEnabled(has_data)
+        self.show_all_button.setEnabled(has_data)
+        self.compare_button.setEnabled(has_data and (dataset_count >= 2 or self.is_comparing))
+
+        self._sync_menu_state()
+        self._refresh_badges()
+
+    def _show_graph_panel(self):
+        """空状態からグラフパネルに切り替える"""
+        if hasattr(self, "graph_stack"):
+            self.graph_stack.setCurrentIndex(1)
+
+    def _show_empty_state(self, message=None):
+        """データ未読込時の空状態を表示する"""
+        if message and hasattr(self, "empty_text"):
+            self.empty_text.setText(message)
+        if hasattr(self, "graph_stack"):
+            self.graph_stack.setCurrentIndex(0)
+
+    def _refresh_badges(self):
+        """ヘッダーのバッジ表示を最新の状態に更新する"""
+        dataset_count = len(getattr(self, "processed_data", {}))
+        dataset_text = f"{dataset_count} ファイル" if dataset_count else "ファイル未選択"
+        dataset_style = "BadgeAccent" if dataset_count else "BadgeMuted"
+        self._set_badge(self.dataset_badge, dataset_text, dataset_style)
+
+        if self.is_g_quality_mode:
+            mode_text = "モード: G-quality"
+            mode_style = "BadgeAccent"
+        elif self.is_comparing:
+            mode_text = "モード: 比較"
+            mode_style = "BadgeInfo"
+        else:
+            mode_text = "モード: 通常"
+            mode_style = "BadgeInfo"
+        self._set_badge(self.mode_badge, mode_text, mode_style)
+
+        view_text = "表示: 全体" if self.is_showing_all_data else "表示: トリミング"
+        view_style = "BadgeInfo" if self.is_showing_all_data else "BadgeMuted"
+        self._set_badge(self.view_badge, view_text, view_style)
+
+        theme_map = {
+            ThemeType.DARK: "テーマ: ダーク",
+            ThemeType.LIGHT: "テーマ: ライト",
+            ThemeType.SYSTEM: "テーマ: システム",
+        }
+        theme_text = theme_map.get(self.current_theme_type, "テーマ: システム")
+        self._set_badge(self.theme_badge, theme_text, "BadgeMuted")
+
+    def _resolve_sensor_visibility(self, inner_series, drag_series) -> tuple[bool, bool]:
+        """
+        設定とデータ有無に基づき、グラフに表示するセンサーを決定する
+        """
+        mode = self.config.get("graph_sensor_mode", "both")
+        has_inner = inner_series is not None and not inner_series.empty
+        has_drag = drag_series is not None and not drag_series.empty
+
+        show_inner = has_inner and mode in ("both", "inner_only")
+        show_drag = has_drag and mode in ("both", "drag_only")
+
+        # 希望したセンサーが欠落している場合は、利用可能なデータをフォールバック表示
+        if mode == "inner_only" and not show_inner and has_drag:
+            show_drag = True
+        if mode == "drag_only" and not show_drag and has_inner:
+            show_inner = True
+        if not show_inner and not show_drag:
+            show_inner = has_inner
+            show_drag = has_drag
+
+        return show_inner, show_drag
+
     def _show_about_dialog(self):
         """バージョン情報ダイアログを表示する"""
         message = (
             f"<b>Acceleration Analysis Tool (AAT)</b><br>"
             f"バージョン: {APP_VERSION}<br>"
-            "微小重力環境下での実験データ分析を支援する PyQt6 アプリケーションです。"
+            "微小重力環境下での実験データ分析を支援する PySide6 アプリケーションです。"
         )
         QMessageBox.about(self, "AAT について", message)
 
@@ -266,7 +686,8 @@ class MainWindow(QMainWindow):
         self.processed_data = {}
 
         # 設定の読み込み
-        self.config = load_config()
+        if not hasattr(self, "config"):
+            self.config = load_config(on_warning=self._notify_warning)
 
         # 各種フラグの初期化
         self.is_comparing = False
@@ -274,6 +695,15 @@ class MainWindow(QMainWindow):
         self.is_showing_all_data = False
         self.g_quality_data = None
         self.is_g_quality_analysis_running = False
+
+        # Current Theme State
+        self.current_theme_type = ThemeType.from_config(self.config.get("theme"))
+
+        # System theme listener
+        try:
+            QApplication.instance().styleHints().colorSchemeChanged.connect(self._handle_system_theme_change)
+        except Exception as e:
+            logger.warning(f"システムテーマ変更の監視設定に失敗しました: {e}")
 
         # ワーカースレッド配列の初期化
         self.workers = []
@@ -283,6 +713,9 @@ class MainWindow(QMainWindow):
 
         # ファイル名とパスのマッピング
         self.file_paths = {}  # ファイル名とパスを保存する辞書
+
+        self._sync_theme_menu_state()
+        self._refresh_badges()
 
     def _clear_span_selectors(self):
         """
@@ -302,12 +735,88 @@ class MainWindow(QMainWindow):
             # エラーが発生してもリストはクリア
             self.span_selectors.clear()
 
+    def _add_version_watermark(self, ax, color=None):
+        """
+        グラフ右下にアプリのバージョンを表示する（直書き禁止）
+        """
+        try:
+            ax.text(
+                0.98,
+                0.02,
+                f"AAT v{APP_VERSION}",
+                transform=ax.transAxes,
+                fontsize=8,
+                verticalalignment="bottom",
+                horizontalalignment="right",
+                color=color or Colors.TEXT_SECONDARY,
+            )
+        except Exception as e:
+            logger.debug(f"バージョンウォーターマークの追加に失敗: {e}")
+
+    def _matplotlib_palette(self):
+        """Qtパレットから現在の背景/テキスト色を取得し、Matplotlib用に返す"""
+        # Qtパレットに依存するとライトでも暗くなるケースがあるため、テーマ種別で決め打ちする
+        if self.current_theme_type == ThemeType.LIGHT:
+            return (
+                Colors.LIGHT_BG_PRIMARY,
+                Colors.LIGHT_BG_SECONDARY,
+                Colors.LIGHT_TEXT_PRIMARY,
+                Colors.LIGHT_TEXT_SECONDARY,
+                Colors.LIGHT_BORDER,
+            )
+
+        # DARK/SYSTEM は Colors の現在値を使用
+        return Colors.BG_PRIMARY, Colors.BG_SECONDARY, Colors.TEXT_PRIMARY, Colors.TEXT_SECONDARY, Colors.BORDER
+
+    def _set_canvas_background(self):
+        """キャンバスとFigureの背景色をQtパレットに合わせる"""
+        bg_primary, bg_secondary, _, _, _ = self._matplotlib_palette()
+        if hasattr(self, "figure"):
+            self.figure.patch.set_facecolor(bg_secondary)
+        if hasattr(self, "canvas"):
+            self.canvas.setStyleSheet(f"background-color: {bg_primary};")
+
+    def _apply_axes_theme(self, ax, secondary_ax=None, legends=None):
+        """
+        Matplotlib Axesに現在のテーマカラーを適用する
+        """
+        try:
+            bg_primary, bg_secondary, text_primary, text_secondary, border = self._matplotlib_palette()
+
+            ax.set_facecolor(bg_secondary)
+            for spine in ax.spines.values():
+                spine.set_color(border)
+            ax.tick_params(colors=text_secondary, which="both")
+            ax.xaxis.label.set_color(text_primary)
+            ax.yaxis.label.set_color(text_primary)
+            ax.title.set_color(text_primary)
+            ax.grid(True, linestyle="--", alpha=0.3, color=text_secondary)
+
+            if secondary_ax is not None:
+                for spine in secondary_ax.spines.values():
+                    spine.set_color(border)
+                secondary_ax.tick_params(colors=text_secondary, which="both")
+                secondary_ax.xaxis.label.set_color(text_primary)
+                secondary_ax.yaxis.label.set_color(text_primary)
+
+            if legends:
+                for legend in legends:
+                    if legend:
+                        legend.set_facecolor(bg_secondary)
+                        frame = legend.get_frame()
+                        frame.set_edgecolor(border)
+                        for text in legend.get_texts():
+                            text.set_color(text_primary)
+        except Exception as e:
+            logger.debug(f"テーマ適用中にエラー: {e}")
+
     def _suppress_qt_messages(self):
         """
         特定のQtメッセージを抑制し、macOS固有の設定を最適化する
         """
         try:
-            from PyQt6.QtCore import QtMsgType, qInstallMessageHandler
+            from PySide6.QtCore import QtMsgType, qInstallMessageHandler
+            from PySide6.QtWidgets import QApplication
 
             def message_handler(msg_type, context, message):
                 # macOS固有の抑制対象メッセージ
@@ -345,13 +854,11 @@ class MainWindow(QMainWindow):
 
             # macOS固有の追加設定
             if sys.platform == "darwin":
-                from PyQt6.QtWidgets import QApplication
-
                 app = QApplication.instance()
                 if app:
-                    # アプリケーション属性の設定（PyQt6で利用可能なもののみ）
+                    # アプリケーション属性の設定（PySide6で利用可能なもののみ）
                     try:
-                        # PyQt6ではAA_EnableHighDpiScalingとAA_UseHighDpiPixmapsは削除されました
+                        # PySide6ではAA_EnableHighDpiScalingとAA_UseHighDpiPixmapsは削除されました
                         # High DPIサポートはデフォルトで有効になっています
                         if hasattr(Qt.ApplicationAttribute, "AA_DontShowIconsInMenus"):
                             app.setAttribute(Qt.ApplicationAttribute.AA_DontShowIconsInMenus, True)
@@ -367,6 +874,48 @@ class MainWindow(QMainWindow):
         except Exception as e:
             log_exception(e, "Qtメッセージハンドラの設定に失敗")
             logger.warning("デフォルトのQt設定を使用します")
+
+    def _handle_system_theme_change(self, scheme):
+        """システムテーマの変更を検知して適用する"""
+        if self.current_theme_type == ThemeType.SYSTEM:
+            logger.info(f"システムテーマの変更を検知しました: {scheme}")
+            # Re-apply SYSTEM theme to trigger detection logic
+            self._change_theme(ThemeType.SYSTEM)
+
+    def _change_theme(self, theme_type: ThemeType):
+        """
+        アプリケーションのテーマを変更する
+
+        Args:
+            theme_type (ThemeType): 適用するテーマタイプ
+        """
+        try:
+            logger.info(f"テーマを変更します: {theme_type.name}")
+            self.current_theme_type = theme_type
+
+            apply_theme(QApplication.instance(), theme_type)
+            theme_preference = theme_type.to_config_value()
+            if self.config.get("theme") != theme_preference:
+                self.config["theme"] = theme_preference
+                save_config(self.config, on_error=self._notify_warning)
+
+            self._sync_theme_menu_state()
+
+            # Update matplotlib figure background if needed
+            if hasattr(self, "figure"):
+                self._set_canvas_background()
+                # Apply theme to all existing axes
+                for ax in self.figure.axes:
+                    self._apply_axes_theme(ax, legends=[ax.get_legend()])
+                self.canvas.draw()
+
+            # Update status
+            self.status_label.setText(f"テーマを {theme_type.name} に変更しました")
+            self._refresh_badges()
+
+        except Exception as e:
+            log_exception(e, "テーマ変更中にエラーが発生しました")
+            QMessageBox.warning(self, "エラー", f"テーマの変更に失敗しました: {e}")
 
     # ------------------------------------------------
     # ファイル処理関連メソッド
@@ -392,16 +941,11 @@ class MainWindow(QMainWindow):
             self.status_label.setText("処理中...")
 
             # 進捗表示の初期化
-            self.progress_label.setText("全体進捗:")
-            self.progress_label.setVisible(True)
-            self.progress_bar.setVisible(True)
+            self.progress_container.setVisible(True)
             self.progress_bar.setValue(0)
             self.progress_bar.setMaximum(total_files)
 
             # ファイル進捗表示の初期化
-            self.file_progress_label.setText("ファイル処理進捗:")
-            self.file_progress_label.setVisible(True)
-            self.file_progress_bar.setVisible(True)
             self.file_progress_bar.setValue(0)
             self.file_progress_bar.setMaximum(100)
 
@@ -422,14 +966,86 @@ class MainWindow(QMainWindow):
             for file_idx, file_path in enumerate(file_paths):
                 logger.info(f"ファイル処理開始 ({file_idx + 1}/{total_files}): {file_path}")
                 file_name_without_ext = os.path.splitext(os.path.basename(file_path))[0]
+                existing_path = self.file_paths.get(file_name_without_ext)
+                force_reprocess = False
+                force_g_quality = False
+                temp_config = None
 
                 # 進捗更新
                 self.progress_bar.setValue(file_idx)
                 self.processing_status_label.setText(f"処理中: {file_name_without_ext} ({file_idx + 1}/{total_files})")
                 QApplication.processEvents()
 
+                # 既に処理済みのファイルを選択した場合の対応
+                if file_name_without_ext in self.processed_data:
+                    same_file = False
+                    if existing_path:
+                        try:
+                            same_file = os.path.samefile(existing_path, file_path)
+                        except Exception:
+                            same_file = os.path.abspath(existing_path) == os.path.abspath(file_path)
+
+                    dialog = QMessageBox(self)
+                    dialog.setIcon(QMessageBox.Icon.Question)
+                    dialog.setWindowTitle("再処理の確認")
+
+                    if same_file:
+                        dialog.setText(
+                            f"{file_name_without_ext} はこのセッションですでに処理済みです。\n"
+                            "保存済みの結果を再利用しますか？"
+                        )
+                        reuse_button = dialog.addButton("再利用", QMessageBox.ButtonRole.YesRole)
+                        rerun_button = dialog.addButton("再処理して上書き", QMessageBox.ButtonRole.AcceptRole)
+                        skip_button = dialog.addButton("スキップ", QMessageBox.ButtonRole.RejectRole)
+                        dialog.setDefaultButton(reuse_button)
+                    else:
+                        dialog.setText(
+                            f"{file_name_without_ext} は既に別のファイルで処理済みです。\n"
+                            f"既存: {existing_path or '不明'}\n"
+                            f"新規: {file_path}\n"
+                            "どのように処理しますか？"
+                        )
+                        reuse_button = dialog.addButton("既存の結果を維持", QMessageBox.ButtonRole.YesRole)
+                        rerun_button = dialog.addButton("新しいファイルで処理", QMessageBox.ButtonRole.AcceptRole)
+                        skip_button = dialog.addButton("スキップ", QMessageBox.ButtonRole.RejectRole)
+                        dialog.setDefaultButton(rerun_button)
+
+                    dialog.exec()
+                    clicked_button = dialog.clickedButton()
+
+                    if clicked_button == reuse_button:
+                        self.processing_status_label.setText(
+                            f"処理済みデータを再利用: {file_name_without_ext} ({file_idx + 1}/{total_files})"
+                        )
+                        self.progress_bar.setValue(file_idx + 1)
+                        self.file_progress_bar.setValue(100)
+                        QApplication.processEvents()
+                        continue
+
+                    if clicked_button == skip_button:
+                        self.processing_status_label.setText(f"スキップ: {file_name_without_ext}")
+                        self.progress_bar.setValue(file_idx + 1)
+                        QApplication.processEvents()
+                        continue
+
+                    # 再処理を選択した場合はキャッシュを使わず最後まで再実行
+                    force_reprocess = True
+                    force_g_quality = True
+                    # 既存の処理結果をクリアして整合性を保つ
+                    self.processed_data.pop(file_name_without_ext, None)
+                    self.file_paths.pop(file_name_without_ext, None)
+                    try:
+                        from core.cache_manager import delete_cache
+
+                        delete_cache(file_path)
+                    except Exception as cache_error:
+                        logger.debug(f"キャッシュ削除に失敗しましたが処理を継続します: {cache_error}")
+                    self.processing_status_label.setText(
+                        f"再処理中: {file_name_without_ext} ({file_idx + 1}/{total_files})"
+                    )
+
                 # キャッシュの確認
-                if self.config.get("use_cache", True):
+                if self.config.get("use_cache", True) and not force_reprocess:
                     has_cache, cache_id = has_valid_cache(file_path, self.config)
                     if has_cache:
                         # キャッシュの再利用について確認
@@ -494,94 +1110,85 @@ class MainWindow(QMainWindow):
                     self.file_progress_bar.setValue(40)
                     QApplication.processEvents()
 
-                except ValueError as e:
-                    # 特定のエラーメッセージの場合は列選択ダイアログを表示
-                    if len(e.args) > 1 and e.args[0] == "必要な列が見つかりません。列の選択が必要です。":
-                        # 時間列と加速度列の候補を取得
-                        time_columns = e.args[1]
-                        accel_columns = e.args[2]
+                except ColumnNotFoundError:
+                    # 時間列と加速度列の候補を取得
+                    time_columns, accel_columns = detect_columns(file_path)
 
-                        if not time_columns:
+                    if not time_columns:
+                        QMessageBox.critical(
+                            self,
+                            "エラー",
+                            "CSVファイルに時間列の候補が見つかりませんでした。",
+                        )
+                        continue
+
+                    if not accel_columns:
+                        QMessageBox.critical(
+                            self,
+                            "エラー",
+                            "CSVファイルに加速度列の候補が見つかりませんでした。",
+                        )
+                        continue
+
+                    # 列選択ダイアログを表示（片側のみの利用にも対応）
+                    dialog = ColumnSelectorDialog(time_columns, accel_columns, self)
+                    if dialog.exec():
+                        # ダイアログから選択された列を取得
+                        time_column, inner_column, drag_column, use_inner, use_drag = dialog.get_selected_columns()
+
+                        # 一時的に設定を上書き
+                        temp_config = self.config.copy()
+                        temp_config.update(
+                            {
+                                "time_column": time_column,
+                                "acceleration_column_inner_capsule": inner_column,
+                                "acceleration_column_drag_shield": drag_column,
+                                "use_inner_acceleration": use_inner,
+                                "use_drag_acceleration": use_drag,
+                            }
+                        )
+
+                        # 再度データの読み込みを試みる
+                        try:
+                            raw_data = pd.read_csv(file_path)
+                            self.file_progress_bar.setValue(20)
+                            QApplication.processEvents()
+
+                            (
+                                time,
+                                gravity_level_inner_capsule,
+                                gravity_level_drag_shield,
+                                adjusted_time,
+                            ) = load_and_process_data(file_path, temp_config)
+                            self.file_progress_bar.setValue(40)
+                            QApplication.processEvents()
+
+                            # 列選択が成功した場合、ユーザーに設定を保存するか尋ねる
+                            reply = QMessageBox.question(
+                                self,
+                                "設定の保存",
+                                "選択した列設定をデフォルトとして保存しますか？",
+                                QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
+                            )
+
+                            if reply == QMessageBox.StandardButton.Yes:
+                                self.config.update(temp_config)
+                                save_config(self.config, on_error=self._notify_warning)
+                                logger.info("列設定を保存しました")
+                            else:
+                                logger.info("列設定は一時的に使用されますが、保存はしません")
+                        except Exception as e2:
+                            log_exception(e2, "選択された列でのデータ読み込み中にエラーが発生")
                             QMessageBox.critical(
                                 self,
                                 "エラー",
-                                "CSVファイルに時間列の候補が見つかりませんでした。",
+                                f"選択された列でのデータ読み込みに失敗しました: {str(e2)}",
                             )
-                            continue
-
-                        if len(accel_columns) < 2:
-                            QMessageBox.critical(
-                                self,
-                                "エラー",
-                                "CSVファイルに加速度列の候補が十分にありません。少なくとも2つの加速度列が必要です。",
-                            )
-                            continue
-
-                        # 列選択ダイアログを表示
-                        dialog = ColumnSelectorDialog(time_columns, accel_columns, self)
-                        if dialog.exec():
-                            # ダイアログから選択された列を取得
-                            time_column, inner_column, drag_column = dialog.get_selected_columns()
-
-                            # 一時的に設定を上書き
-                            temp_config = self.config.copy()
-                            temp_config["time_column"] = time_column
-                            temp_config["acceleration_column_inner_capsule"] = inner_column
-                            temp_config["acceleration_column_drag_shield"] = drag_column
-
-                            # 再度データの読み込みを試みる
-                            try:
-                                # 元のCSVデータを読み込む
-                                raw_data = pd.read_csv(file_path)
-                                self.file_progress_bar.setValue(20)
-                                QApplication.processEvents()
-
-                                (
-                                    time,
-                                    gravity_level_inner_capsule,
-                                    gravity_level_drag_shield,
-                                    adjusted_time,
-                                ) = load_and_process_data(file_path, temp_config)
-                                self.file_progress_bar.setValue(40)
-                                QApplication.processEvents()
-
-                                # 列選択が成功した場合、ユーザーに設定を保存するか尋ねる
-                                reply = QMessageBox.question(
-                                    self,
-                                    "設定の保存",
-                                    "選択した列設定をデフォルトとして保存しますか？",
-                                    QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                                )
-
-                                if reply == QMessageBox.StandardButton.Yes:
-                                    self.config.update(
-                                        {
-                                            "time_column": time_column,
-                                            "acceleration_column_inner_capsule": inner_column,
-                                            "acceleration_column_drag_shield": drag_column,
-                                        }
-                                    )
-                                    save_config(self.config)
-                                    logger.info("列設定を保存しました")
-                                else:
-                                    # 保存しない場合でも、このファイルの処理には選択した列情報を使用するために
-                                    # 現在の処理中ではtemp_configを使い続ける
-                                    logger.info("列設定は一時的に使用されますが、保存はしません")
-                            except Exception as e2:
-                                log_exception(e2, "選択された列でのデータ読み込み中にエラーが発生")
-                                QMessageBox.critical(
-                                    self,
-                                    "エラー",
-                                    f"選択された列でのデータ読み込みに失敗しました: {str(e2)}",
-                                )
-                                continue
-                        else:
-                            # ダイアログがキャンセルされた場合は次のファイルへ
-                            logger.info("列選択がキャンセルされました")
                             continue
                     else:
-                        # その他のエラーはそのまま表示
-                        raise
+                        # ダイアログがキャンセルされた場合は次のファイルへ
+                        logger.info("列選択がキャンセルされました")
+                        continue
 
                 # データのフィルタリング
                 self.processing_status_label.setText(f"データをフィルタリング中... ({file_idx + 1}/{total_files})")
@@ -615,6 +1222,10 @@ class MainWindow(QMainWindow):
                     "filtered_gravity_level_drag_shield": filtered_gravity_level_drag_shield,
                     "end_index": end_index,
                     "raw_data": raw_data,  # 元のCSVデータを保存
+                    "use_inner_acceleration": (temp_config or self.config).get("use_inner_acceleration", True),
+                    "use_drag_acceleration": (temp_config or self.config).get("use_drag_acceleration", True),
+                    "has_inner_data": not filtered_gravity_level_inner_capsule.empty,
+                    "has_drag_data": not filtered_gravity_level_drag_shield.empty,
                 }
                 self.file_paths[file_name_without_ext] = file_path
                 logger.info(f"データ処理完了: {file_name_without_ext}")
@@ -671,7 +1282,7 @@ class MainWindow(QMainWindow):
                 # データエクスポート用の設定を準備
                 # 列選択ダイアログで選択した場合は、その選択情報を使用する
                 export_config = self.config.copy()
-                if "temp_config" in locals():
+                if temp_config is not None:
                     # 列選択ダイアログで選択した列情報を優先的に使用
                     export_config.update(
                         {
@@ -708,6 +1319,9 @@ class MainWindow(QMainWindow):
                     filtered_adjusted_time,  # フィルタリング済みの調整時間データを追加
                     export_config,  # 最新の設定情報を渡す
                     raw_data,  # 元のCSVデータを渡す
+                    confirm_overwrite=self._confirm_overwrite,
+                    notify_warning=self._notify_warning,
+                    notify_info=self._notify_info,
                 )
                 logger.info(f"データエクスポート完了: {file_name_without_ext}")
                 self.file_progress_bar.setValue(90)
@@ -715,7 +1329,9 @@ class MainWindow(QMainWindow):
 
                 # 自動G-quality評価がオンの場合は計算
                 if self.config.get("auto_calculate_g_quality", True):
-                    self.calculate_g_quality_for_dataset(file_name_without_ext, file_idx, total_files)
+                    self.calculate_g_quality_for_dataset(
+                        file_name_without_ext, file_idx, total_files, force=force_g_quality
+                    )
 
                 # ファイル処理完了
                 self.file_progress_bar.setValue(100)
@@ -735,15 +1351,17 @@ class MainWindow(QMainWindow):
             self.canvas.draw_idle()
 
             # 3秒後にプログレスバーを非表示にする
-            QTimer.singleShot(3000, self.hide_progress_bars)
+            QTimer.singleShot(3000, lambda: self.progress_container.setVisible(False))
 
         except Exception as e:
             log_exception(e, "ファイル処理中に例外が発生")
             self.status_label.setText("エラーが発生しました")
             self.processing_status_label.setText(f"エラー: {str(e)}")
             QMessageBox.critical(self, "エラー", str(e))
+        finally:
+            self._update_data_dependent_controls()
 
-    def calculate_g_quality_for_dataset(self, dataset_name, file_idx, total_files):
+    def calculate_g_quality_for_dataset(self, dataset_name, file_idx, total_files, force=False):
         """
         指定されたデータセットに対してG-quality評価を行う
 
@@ -751,6 +1369,7 @@ class MainWindow(QMainWindow):
             dataset_name (str): データセット名
             file_idx (int): ファイルインデックス
             total_files (int): 総ファイル数
+            force (bool): 既存結果があっても再計算するかどうか
         """
         if dataset_name not in self.processed_data:
             logger.warning(f"データセットが見つかりません: {dataset_name}")
@@ -760,9 +1379,11 @@ class MainWindow(QMainWindow):
         original_file_path = self.file_paths.get(dataset_name)
 
         # G-quality評価が既に存在するかチェック
-        if "g_quality_data" in data:
+        if "g_quality_data" in data and not force:
             logger.info(f"G-quality評価は既に存在します: {dataset_name}")
             return
+        if force:
+            data.pop("g_quality_data", None)
 
         self.processing_status_label.setText(f"G-quality評価を計算中... ({file_idx + 1}/{total_files})")
         QApplication.processEvents()
@@ -853,6 +1474,7 @@ class MainWindow(QMainWindow):
             else:
                 # データセットがない場合はプレースホルダーを表示
                 self.dataset_selector.addItem("データがありません")
+                self._show_empty_state("CSVファイルを読み込んでグラフを表示します。")
 
         # シグナルのブロックを解除
         self.dataset_selector.blockSignals(False)
@@ -862,12 +1484,18 @@ class MainWindow(QMainWindow):
             self.dataset_selector.setCurrentIndex(0)
             # 明示的にデータセットの更新メソッドを呼び出す
             self.update_selected_dataset()
+        self._sync_menu_state()
+        self._refresh_badges()
 
     def update_selected_dataset(self):
         """
         選択されたデータセットに応じてグラフを更新する
         """
         try:
+            if not self.processed_data:
+                self._show_empty_state("CSVファイルを読み込んでグラフを表示します。")
+                return
+
             if self.is_comparing:
                 self.plot_comparison()
             else:
@@ -875,6 +1503,7 @@ class MainWindow(QMainWindow):
 
                 # 「データがありません」のプレースホルダーの場合は何もしない
                 if selected_dataset == "データがありません":
+                    self._show_empty_state("CSVファイルを読み込んでグラフを表示します。")
                     return
 
                 if selected_dataset in self.processed_data:
@@ -898,6 +1527,7 @@ class MainWindow(QMainWindow):
                 else:
                     logger.debug(f"選択されたデータセットが見つかりません: {selected_dataset}")
                     # ユーザーにはエラーを表示しない
+                    self._show_empty_state("選択されたデータが見つかりません。")
 
             # グラフの描画を強制的に更新
             self.canvas.draw_idle()
@@ -1091,22 +1721,42 @@ class MainWindow(QMainWindow):
         Returns:
             str or None: 保存されたグラフのパス。保存されない場合はNone。
         """
+
+        self._show_graph_panel()
         self.figure.clear()
+        self.figure.patch.set_facecolor(Colors.BG_SECONDARY)
+
         ax = self.figure.add_subplot(111)
+        show_inner, show_drag = self._resolve_sensor_visibility(gravity_level_inner_capsule, gravity_level_drag_shield)
+
+        if not show_inner and not show_drag:
+            ax.text(
+                0.5,
+                0.5,
+                "表示できる加速度データがありません",
+                horizontalalignment="center",
+                verticalalignment="center",
+                transform=ax.transAxes,
+                fontsize=14,
+            )
+            self.canvas.draw()
+            return None
 
         # Inner Capsuleは元の時間で、Drag Shieldは調整後の時間でプロット
-        ax.plot(
-            time,
-            gravity_level_inner_capsule,
-            label=f"{file_name_without_ext} (Inner Capsule)",
-            linewidth=0.8,
-        )
-        ax.plot(
-            adjusted_time,
-            gravity_level_drag_shield,
-            label=f"{file_name_without_ext} (Drag Shield)",
-            linewidth=0.8,
-        )
+        if show_inner:
+            ax.plot(
+                time,
+                gravity_level_inner_capsule,
+                label=f"{file_name_without_ext} (Inner Capsule)",
+                linewidth=0.8,
+            )
+        if show_drag:
+            ax.plot(
+                adjusted_time,
+                gravity_level_drag_shield,
+                label=f"{file_name_without_ext} (Drag Shield)",
+                linewidth=0.8,
+            )
 
         ax.set_ylim(config["ylim_min"], config["ylim_max"])
 
@@ -1117,19 +1767,14 @@ class MainWindow(QMainWindow):
         ax.set_title(f"The Gravity Level {file_name_without_ext}")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Gravity Level (G)")
+        ax.grid(True, alpha=0.3)
         ax.legend()
-        ax.grid(True)
 
-        # グラフの右下にAAT-v9.3.0を追加
-        ax.text(
-            0.98,
-            0.02,
-            "AAT-v9.3.0",
-            transform=ax.transAxes,
-            fontsize=8,
-            verticalalignment="bottom",
-            horizontalalignment="right",
-        )
+        # テーマ色を適用
+        self._apply_axes_theme(ax, legends=[ax.get_legend()])
+
+        # グラフの右下にバージョンを表示
+        self._add_version_watermark(ax)
 
         # 範囲選択機能を追加
         # 既存のSpanSelectorを安全にクリア
@@ -1154,148 +1799,147 @@ class MainWindow(QMainWindow):
             logger.warning("original_file_pathが空です。グラフを保存できません。")
             return None
 
-        # エクスポート用の設定を取得
-        export_width = config.get("export_figure_width", 10)
-        export_height = config.get("export_figure_height", 6)
-        export_dpi = config.get("export_dpi", 300)
-        export_bbox = config.get("export_bbox_inches", None)
-        bbox_inches = "tight" if export_bbox == "tight" else None
+        try:
+            # エクスポート用の設定を取得
+            export_width = config.get("export_figure_width", 10)
+            export_height = config.get("export_figure_height", 6)
+            export_dpi = config.get("export_dpi", 300)
+            export_bbox = config.get("export_bbox_inches", None)
+            bbox_inches = "tight" if export_bbox == "tight" else None
 
-        # エクスポート用のfigureを作成
-        export_fig = plt.figure(figsize=(export_width, export_height))
-        export_ax = export_fig.add_subplot(111)
+            # エクスポート用のfigureを作成
+            export_fig = plt.figure(figsize=(export_width, export_height))
+            export_ax = export_fig.add_subplot(111)
 
-        # グラフを再描画（エクスポート用）
-        export_ax.plot(
-            time,
-            gravity_level_inner_capsule,
-            label=f"{file_name_without_ext} (Inner Capsule)",
-            linewidth=0.8,
-        )
-        export_ax.plot(
-            adjusted_time,
-            gravity_level_drag_shield,
-            label=f"{file_name_without_ext} (Drag Shield)",
-            linewidth=0.8,
-        )
+            # グラフを再描画（エクスポート用）
+            if show_inner:
+                export_ax.plot(
+                    time,
+                    gravity_level_inner_capsule,
+                    label=f"{file_name_without_ext} (Inner Capsule)",
+                    linewidth=0.8,
+                )
+            if show_drag:
+                export_ax.plot(
+                    adjusted_time,
+                    gravity_level_drag_shield,
+                    label=f"{file_name_without_ext} (Drag Shield)",
+                    linewidth=0.8,
+                )
 
-        export_ax.set_ylim(config["ylim_min"], config["ylim_max"])
-        export_ax.set_xlim(0, config.get("default_graph_duration", 1.45))
-        export_ax.set_title(f"The Gravity Level {file_name_without_ext}")
-        export_ax.set_xlabel("Time (s)")
-        export_ax.set_ylabel("Gravity Level (G)")
-        export_ax.legend()
-        export_ax.grid(True)
+            export_ax.set_ylim(config["ylim_min"], config["ylim_max"])
+            export_ax.set_xlim(0, config.get("default_graph_duration", 1.45))
+            export_ax.set_title(f"The Gravity Level {file_name_without_ext}")
+            export_ax.set_xlabel("Time (s)")
+            export_ax.set_ylabel("Gravity Level (G)")
+            export_ax.grid(True, alpha=0.3)
+            export_ax.legend()
 
-        # グラフの右下にAAT-v9.3.0を追加
-        export_ax.text(
-            0.98,
-            0.02,
-            "AAT-v9.3.0",
-            transform=export_ax.transAxes,
-            fontsize=8,
-            verticalalignment="bottom",
-            horizontalalignment="right",
-        )
+            # グラフの右下にバージョンを表示
+            self._add_version_watermark(export_ax)
 
-        export_fig.tight_layout()
+            export_fig.tight_layout()
 
-        # グラフを保存
-        csv_dir = os.path.dirname(original_file_path)
-        logger.debug(f"CSV directory: {csv_dir}")
-        logger.debug(f"Original file path: {original_file_path}")
-        results_dir, graphs_dir = create_output_directories(csv_dir)
-        logger.debug(f"Results directory: {results_dir}")
-        logger.debug(f"Graphs directory: {graphs_dir}")
-        graph_path = os.path.join(graphs_dir, f"{file_name_without_ext}_gl.png")
-        export_fig.savefig(graph_path, dpi=export_dpi, bbox_inches=bbox_inches)
-        logger.info(f"グラフを保存しました: {graph_path} (サイズ: {export_width}x{export_height}, DPI: {export_dpi})")
+            # グラフを保存
+            csv_dir = os.path.dirname(original_file_path)
+            logger.debug(f"CSV directory: {csv_dir}")
+            logger.debug(f"Original file path: {original_file_path}")
+            results_dir, graphs_dir = create_output_directories(csv_dir)
+            logger.debug(f"Results directory: {results_dir}")
+            logger.debug(f"Graphs directory: {graphs_dir}")
+            graph_path = os.path.join(graphs_dir, f"{file_name_without_ext}_gl.png")
+            export_fig.savefig(graph_path, dpi=export_dpi, bbox_inches=bbox_inches)
+            logger.info(
+                f"グラフを保存しました: {graph_path} (サイズ: {export_width}x{export_height}, DPI: {export_dpi})"
+            )
 
-        # エクスポート用figureをクローズ
-        plt.close(export_fig)
+            # エクスポート用figureをクローズ
+            plt.close(export_fig)
 
-        return graph_path
+            return graph_path
+
+        except Exception as e:
+            logger.error(f"グラフの保存中にエラーが発生しました: {e}")
+            return None
 
     def plot_comparison(self):
         """
         複数のデータセットを比較するグラフを描画する
         """
         logger.info("比較グラフのプロット開始")
+        self._show_graph_panel()
         self.figure.clear()
+        self.figure.patch.set_facecolor(Colors.BG_SECONDARY)
         ax = self.figure.add_subplot(111)
 
         # カラーマップを使用して、各データセットに異なる色を割り当てる
         colors = plt.get_cmap("rainbow")(np.linspace(0, 1, len(self.processed_data) * 2))
         color_index = 0
+        plotted_any = False
 
         for file_name, data in self.processed_data.items():
             if self.is_g_quality_mode:
-                if "g_quality_data" in data and data["g_quality_data"]:
-                    # G-quality データが存在し、空でない場合のみプロット
-                    try:
-                        (
-                            window_sizes,
-                            min_times_inner_capsule,
-                            min_means_inner_capsule,
-                            min_stds_inner_capsule,
-                            min_times_drag_shield,
-                            min_means_drag_shield,
-                            min_stds_drag_shield,
-                        ) = zip(*data["g_quality_data"])
-                    except ValueError as e:
-                        print(f"警告: {file_name} のG-qualityデータが不正です: {e}")
-                        continue
-                    ax.plot(
-                        window_sizes,
-                        min_means_inner_capsule,
-                        label=f"{file_name} (Inner Capsule)",
-                        color=colors[color_index],
-                    )
-                    color_index += 1
-                    ax.plot(
-                        window_sizes,
-                        min_means_drag_shield,
-                        label=f"{file_name} (Drag Shield)",
-                        color=colors[color_index],
-                    )
-                    color_index += 1
+                g_quality_rows = data.get("g_quality_data") or []
+                if g_quality_rows:
+                    inner_points = [(row[0], row[2]) for row in g_quality_rows if row[2] is not None]
+                    drag_points = [(row[0], row[5]) for row in g_quality_rows if row[5] is not None]
+
+                    if inner_points:
+                        ax.plot(
+                            [p[0] for p in inner_points],
+                            [p[1] for p in inner_points],
+                            label=f"{file_name} (Inner Capsule)",
+                            color=colors[color_index],
+                        )
+                        color_index += 1
+                        plotted_any = True
+
+                    if drag_points:
+                        ax.plot(
+                            [p[0] for p in drag_points],
+                            [p[1] for p in drag_points],
+                            label=f"{file_name} (Drag Shield)",
+                            color=colors[color_index],
+                        )
+                        color_index += 1
+                        plotted_any = True
+
+                    if not inner_points and not drag_points:
+                        logger.info(f"G-quality比較: {file_name} にプロット可能なデータがありません")
             else:
                 if self.is_showing_all_data:
-                    # 全データを表示（マイナスの時間も含む）
-                    ax.plot(
-                        data["time"],
-                        data["gravity_level_inner_capsule"],
-                        label=f"{file_name} (Inner Capsule)",
-                        linewidth=0.8,
-                        color=colors[color_index],
-                    )
-                    color_index += 1
-                    ax.plot(
-                        data["adjusted_time"],
-                        data["gravity_level_drag_shield"],
-                        label=f"{file_name} (Drag Shield)",
-                        linewidth=0.8,
-                        color=colors[color_index],
-                    )
-                    color_index += 1
+                    inner_series = data["gravity_level_inner_capsule"]
+                    drag_series = data["gravity_level_drag_shield"]
+                    inner_time = data["time"]
+                    drag_time = data["adjusted_time"]
                 else:
-                    # フィルタリングされたデータの表示
+                    inner_series = data["filtered_gravity_level_inner_capsule"]
+                    drag_series = data["filtered_gravity_level_drag_shield"]
+                    inner_time = data["filtered_time"]
+                    drag_time = data["filtered_adjusted_time"]
+
+                show_inner, show_drag = self._resolve_sensor_visibility(inner_series, drag_series)
+
+                if show_inner:
                     ax.plot(
-                        data["filtered_time"],
-                        data["filtered_gravity_level_inner_capsule"],
+                        inner_time,
+                        inner_series,
                         label=f"{file_name} (Inner Capsule)",
                         linewidth=0.8,
                         color=colors[color_index],
                     )
                     color_index += 1
+                    plotted_any = True
+                if show_drag:
                     ax.plot(
-                        data["filtered_adjusted_time"],
-                        data["filtered_gravity_level_drag_shield"],
+                        drag_time,
+                        drag_series,
                         label=f"{file_name} (Drag Shield)",
                         linewidth=0.8,
                         color=colors[color_index],
                     )
                     color_index += 1
+                    plotted_any = True
 
         # グラフのタイトルと軸ラベルの設定
         if self.is_g_quality_mode:
@@ -1312,19 +1956,23 @@ class MainWindow(QMainWindow):
                 default_duration = self.config.get("default_graph_duration", 1.45)
                 ax.set_xlim(0, default_duration)
 
-        ax.legend()
-        ax.grid(True)
+        if not plotted_any:
+            ax.text(
+                0.5,
+                0.5,
+                "比較できるデータがありません",
+                horizontalalignment="center",
+                verticalalignment="center",
+                transform=ax.transAxes,
+                fontsize=14,
+            )
 
-        # グラフの右下にAAT-v9.3.0を追加
-        ax.text(
-            0.98,
-            0.02,
-            "AAT-v9.3.0",
-            transform=ax.transAxes,
-            fontsize=8,
-            verticalalignment="bottom",
-            horizontalalignment="right",
-        )
+        legend = ax.legend() if plotted_any else None
+        # テーマ色を適用
+        self._apply_axes_theme(ax, legends=[legend])
+
+        # グラフの右下にバージョンを表示
+        self._add_version_watermark(ax)
 
         # 比較モードではSpanSelectorを追加しない（選択範囲の統計計算を無効化）
         self._clear_span_selectors()
@@ -1339,10 +1987,12 @@ class MainWindow(QMainWindow):
             g_quality_data (list): G-quality解析結果のリスト
             file_name (str): ファイル名
         """
+        self._show_graph_panel()
         # original_file_pathをファイルパス辞書から取得
         original_file_path = self.file_paths.get(file_name)
 
         self.figure.clear()
+        self.figure.patch.set_facecolor(Colors.BG_SECONDARY)
         ax = self.figure.add_subplot(111)
 
         # G-qualityデータが空でないことを確認
@@ -1360,78 +2010,60 @@ class MainWindow(QMainWindow):
             self.canvas.draw()
             return None
 
-        # データをアンパック
-        try:
-            (
-                window_sizes,
-                min_times_inner_capsule,
-                min_means_inner_capsule,
-                min_stds_inner_capsule,
-                min_times_drag_shield,
-                min_means_drag_shield,
-                min_stds_drag_shield,
-            ) = zip(*g_quality_data)
-        except ValueError as e:
-            ax.text(
-                0.5,
-                0.5,
-                f"G-qualityデータの形式が不正です\n{str(e)}",
-                horizontalalignment="center",
-                verticalalignment="center",
-                transform=ax.transAxes,
-                fontsize=14,
-            )
-            ax.set_title(f"G-quality Analysis: {file_name}")
-            self.canvas.draw()
-            return None
+        inner_points = [(row[0], row[2]) for row in g_quality_data if row[2] is not None]
+        drag_points = [(row[0], row[5]) for row in g_quality_data if row[5] is not None]
 
-        ax.plot(
-            window_sizes,
-            min_means_inner_capsule,
-            color="darkblue",
-            label="Inner Capsule: Mean Gravity Level",
-        )
-        ax.plot(
-            window_sizes,
-            min_means_drag_shield,
-            color="red",
-            label="Drag Shield: Mean Gravity Level",
-        )
+        if inner_points:
+            ax.plot(
+                [p[0] for p in inner_points],
+                [p[1] for p in inner_points],
+                color="darkblue",
+                label="Inner Capsule: Mean Gravity Level",
+            )
+        if drag_points:
+            ax.plot(
+                [p[0] for p in drag_points],
+                [p[1] for p in drag_points],
+                color="red",
+                label="Drag Shield: Mean Gravity Level",
+            )
         ax.set_xlabel("Window Size (s)")
         ax.set_ylabel("Mean Gravity Level (G)")
 
         ax2 = ax.twinx()
-        ax2.plot(
-            window_sizes,
-            min_stds_inner_capsule,
-            color="dodgerblue",
-            label="Inner Capsule: Standard Deviation",
-        )
-        ax2.plot(
-            window_sizes,
-            min_stds_drag_shield,
-            color="violet",
-            label="Drag Shield: Standard Deviation",
-        )
+        inner_std_points = [(row[0], row[3]) for row in g_quality_data if row[3] is not None]
+        drag_std_points = [(row[0], row[6]) for row in g_quality_data if row[6] is not None]
+
+        if inner_std_points:
+            ax2.plot(
+                [p[0] for p in inner_std_points],
+                [p[1] for p in inner_std_points],
+                color="dodgerblue",
+                label="Inner Capsule: Standard Deviation",
+            )
+        if drag_std_points:
+            ax2.plot(
+                [p[0] for p in drag_std_points],
+                [p[1] for p in drag_std_points],
+                color="violet",
+                label="Drag Shield: Standard Deviation",
+            )
         ax2.set_ylabel("Standard Deviation (G)")
 
         ax.set_title(f"G-quality Analysis - {file_name}")
-        ax.grid(True)
-        ax.legend(loc="upper left")
-        ax2.legend(loc="upper right")
+        legends = []
+        if ax.get_legend_handles_labels()[0]:
+            legends.append(ax.legend(loc="upper left"))
+        if ax2.get_legend_handles_labels()[0]:
+            legends.append(ax2.legend(loc="upper right"))
+
+        # テーマ色を適用（GUI表示のみ）
+        self._apply_axes_theme(ax, secondary_ax=ax2, legends=legends)
 
         self.figure.tight_layout()
 
-        # グラフの右下にAAT-v9.3.0を追加
-        ax.text(
-            0.98,
-            0.02,
-            "AAT-v9.3.0",
-            transform=ax.transAxes,
-            fontsize=8,
-            verticalalignment="bottom",
-            horizontalalignment="right",
-        )
+        # グラフの右下にバージョンを表示
+        self._add_version_watermark(ax)
 
         # SpanSelectorをクリア（G-qualityモードでは選択範囲機能を無効化）
         self._clear_span_selectors()
@@ -1455,34 +2087,44 @@ class MainWindow(QMainWindow):
         export_ax = export_fig.add_subplot(111)
 
         # グラフを再描画（エクスポート用）
-        export_ax.plot(
-            window_sizes,
-            min_means_inner_capsule,
-            color="darkblue",
-            label="Inner Capsule: Mean Gravity Level",
-        )
-        export_ax.plot(
-            window_sizes,
-            min_means_drag_shield,
-            color="red",
-            label="Drag Shield: Mean Gravity Level",
-        )
+        export_inner_points = [(row[0], row[2]) for row in g_quality_data if row[2] is not None]
+        export_drag_points = [(row[0], row[5]) for row in g_quality_data if row[5] is not None]
+
+        if export_inner_points:
+            export_ax.plot(
+                [p[0] for p in export_inner_points],
+                [p[1] for p in export_inner_points],
+                color="darkblue",
+                label="Inner Capsule: Mean Gravity Level",
+            )
+        if export_drag_points:
+            export_ax.plot(
+                [p[0] for p in export_drag_points],
+                [p[1] for p in export_drag_points],
+                color="red",
+                label="Drag Shield: Mean Gravity Level",
+            )
         export_ax.set_xlabel("Window Size (s)")
         export_ax.set_ylabel("Mean Gravity Level (G)")
 
         export_ax2 = export_ax.twinx()
-        export_ax2.plot(
-            window_sizes,
-            min_stds_inner_capsule,
-            color="dodgerblue",
-            label="Inner Capsule: Standard Deviation",
-        )
-        export_ax2.plot(
-            window_sizes,
-            min_stds_drag_shield,
-            color="violet",
-            label="Drag Shield: Standard Deviation",
-        )
+        export_inner_std_points = [(row[0], row[3]) for row in g_quality_data if row[3] is not None]
+        export_drag_std_points = [(row[0], row[6]) for row in g_quality_data if row[6] is not None]
+
+        if export_inner_std_points:
+            export_ax2.plot(
+                [p[0] for p in export_inner_std_points],
+                [p[1] for p in export_inner_std_points],
+                color="dodgerblue",
+                label="Inner Capsule: Standard Deviation",
+            )
+        if export_drag_std_points:
+            export_ax2.plot(
+                [p[0] for p in export_drag_std_points],
+                [p[1] for p in export_drag_std_points],
+                color="violet",
+                label="Drag Shield: Standard Deviation",
+            )
         export_ax2.set_ylabel("Standard Deviation (G)")
 
         export_ax.set_title(f"G-quality Analysis - {file_name}")
@@ -1490,21 +2132,12 @@ class MainWindow(QMainWindow):
         export_ax.legend(loc="upper left")
         export_ax2.legend(loc="upper right")
 
-        # グラフの右下にAAT-v9.3.0を追加
-        export_ax.text(
-            0.98,
-            0.02,
-            "AAT-v9.3.0",
-            transform=export_ax.transAxes,
-            fontsize=8,
-            verticalalignment="bottom",
-            horizontalalignment="right",
-        )
+        # グラフの右下にバージョンを表示
+        self._add_version_watermark(export_ax)
 
         export_fig.tight_layout()
 
         # 出力ディレクトリ構造を作成（export.pyと同じロジック）
-        from core.export import create_output_directories
 
         csv_dir = os.path.dirname(original_file_path)
         logger.debug(f"G-quality: CSV directory: {csv_dir}")
@@ -1531,63 +2164,80 @@ class MainWindow(QMainWindow):
         Args:
             data (dict): 表示するデータ
         """
+        self._show_graph_panel()
         self.figure.clear()
+        self.figure.patch.set_facecolor(Colors.BG_SECONDARY)
         ax = self.figure.add_subplot(111)
 
+        show_inner, show_drag = self._resolve_sensor_visibility(
+            data.get("gravity_level_inner_capsule"), data.get("gravity_level_drag_shield")
+        )
+
+        if not show_inner and not show_drag:
+            ax.text(
+                0.5,
+                0.5,
+                "表示できる加速度データがありません",
+                horizontalalignment="center",
+                verticalalignment="center",
+                transform=ax.transAxes,
+                fontsize=14,
+            )
+            self.canvas.draw()
+            return
+
         # 全データを表示（マイナスの時間も含む）
-        ax.plot(
-            data["time"],
-            data["gravity_level_inner_capsule"],
-            color="blue",
-            linewidth=0.8,
-            label="Inner Capsule",
-        )
-        ax.plot(
-            data["adjusted_time"],
-            data["gravity_level_drag_shield"],
-            color="red",
-            linewidth=0.8,
-            label="Drag Shield",
-        )
+        if show_inner:
+            ax.plot(
+                data["time"],
+                data["gravity_level_inner_capsule"],
+                color="blue",
+                linewidth=0.8,
+                label="Inner Capsule",
+            )
+        if show_drag:
+            ax.plot(
+                data["adjusted_time"],
+                data["gravity_level_drag_shield"],
+                color="red",
+                linewidth=0.8,
+                label="Drag Shield",
+            )
 
         # トリミング範囲を強調表示
         # Inner Capsuleの範囲
-        ax.axvspan(
-            0,
-            data["filtered_time"].iloc[-1],
-            alpha=0.1,
-            color="blue",
-            label="Inner Capsule Range",
-        )
+        if show_inner and not data["filtered_time"].empty:
+            ax.axvspan(
+                0,
+                data["filtered_time"].iloc[-1],
+                alpha=0.1,
+                color="blue",
+                label="Inner Capsule Range",
+            )
         # Drag Shieldの範囲
-        ax.axvspan(
-            0,
-            data["filtered_adjusted_time"].iloc[-1],
-            alpha=0.1,
-            color="red",
-            label="Drag Shield Range",
-        )
+        if show_drag and not data["filtered_adjusted_time"].empty:
+            ax.axvspan(
+                0,
+                data["filtered_adjusted_time"].iloc[-1],
+                alpha=0.1,
+                color="red",
+                label="Drag Shield Range",
+            )
 
         ax.set_title(f"The Gravity Level {self.dataset_selector.currentText()} (All Data)")
         ax.set_xlabel("Time (s)")
         ax.set_ylabel("Gravity Level (G)")
+        ax.grid(True, alpha=0.3)
 
         # 全体表示モードではX軸の制限を設けず、データの全範囲を表示
         # （エクスポート対象の通常グラフのみ1.45秒に固定）
 
         ax.legend()
-        ax.grid(True)
+        # テーマ色を適用
+        self._apply_axes_theme(ax, legends=[ax.get_legend()])
 
-        # グラフの右下にAAT-v9.3.0を追加
-        ax.text(
-            0.98,
-            0.02,
-            "AAT-v9.3.0",
-            transform=ax.transAxes,
-            fontsize=8,
-            verticalalignment="bottom",
-            horizontalalignment="right",
-        )
+        # グラフの右下にバージョンを表示
+        self._add_version_watermark(ax)
 
         # 全体表示モードではSpanSelectorを追加しない（選択範囲の統計計算を無効化）
         self._clear_span_selectors()
@@ -1608,6 +2258,7 @@ class MainWindow(QMainWindow):
         else:
             logger.info("個別モードから比較モードに切り替えます")
             self.start_comparison()
+        self._refresh_badges()
 
     def start_comparison(self):
         """
@@ -1616,6 +2267,7 @@ class MainWindow(QMainWindow):
         if len(self.processed_data) < 2:
             logger.warning("比較モードには少なくとも2つのデータセットが必要です")
             QMessageBox.warning(self, "警告", "比較するには少なくとも2つのファイルが必要です。")
+            self._sync_menu_state()
             return
 
         self.is_comparing = True
@@ -1623,6 +2275,8 @@ class MainWindow(QMainWindow):
         self.update_dataset_selector()
         self.update_button_visibility()
         self.plot_comparison()
+        self._sync_menu_state()
+        self._refresh_badges()
         logger.info("比較モードを開始しました")
 
     def return_to_individual(self):
@@ -1636,6 +2290,8 @@ class MainWindow(QMainWindow):
             self.dataset_selector.setCurrentIndex(0)
             self.update_selected_dataset()
         self.update_button_visibility()
+        self._sync_menu_state()
+        self._refresh_badges()
 
     def toggle_show_all_data(self):
         """
@@ -1651,6 +2307,8 @@ class MainWindow(QMainWindow):
             self.plot_comparison()
         else:
             self.update_selected_dataset()
+        self._sync_menu_state()
+        self._refresh_badges()
 
     def toggle_g_quality_mode(self):
         """
@@ -1738,6 +2396,8 @@ class MainWindow(QMainWindow):
         self.update_button_visibility()
         if self.is_comparing:
             self.plot_comparison()
+        self._sync_menu_state()
+        self._refresh_badges()
 
     # ------------------------------------------------
     # G-quality解析関連メソッド
@@ -1900,51 +2560,76 @@ class MainWindow(QMainWindow):
         if dialog.exec():
             new_settings = dialog.get_settings()
             self.config.update(new_settings)
-            save_config(self.config)
+            save_config(self.config, on_error=self._notify_warning)
             QMessageBox.information(self, "設定保存", "設定が保存されました。")
 
     def clear_cache(self):
         """
         キャッシュをクリアする
         """
+        # 開いているファイルがない場合は案内のみ表示
+        if not getattr(self, "file_paths", {}):
+            QMessageBox.information(
+                self,
+                "キャッシュクリア",
+                "現在開いているファイルがないため、キャッシュの保存先を特定できません。\nCSVを読み込んだ後に実行してください。",
+            )
+            return
+
+        # 全ての処理済みデータのキャッシュディレクトリを探す
+        cache_targets: list[tuple[Path, Path]] = []
+        cache_dirs_found: set[Path] = set()
+
+        # 現在開いているファイルからキャッシュディレクトリを特定
+        for file_path in self.file_paths.values():
+            path_obj = Path(file_path)
+            base_dir = resolve_base_dir(path_obj.parent)
+            cache_dir = base_dir / "results_AAT" / "cache"
+            if cache_dir.exists():
+                cache_targets.append((path_obj, cache_dir))
+                cache_dirs_found.add(cache_dir)
+
+        if not cache_dirs_found:
+            QMessageBox.information(
+                self,
+                "キャッシュクリア",
+                "削除対象のキャッシュ保存先が見つかりませんでした。\nファイルを読み込んだ後に再度お試しください。",
+            )
+            logger.info("キャッシュクリア: 対象ディレクトリが見つかりませんでした")
+            return
+
         # ユーザーに確認
+        location_count = len(cache_dirs_found)
         reply = QMessageBox.question(
             self,
             "キャッシュクリア",
-            "全てのキャッシュファイルを削除しますか？\nこの操作は取り消せません。",
+            f"検出した{location_count}か所のキャッシュ保存先にあるファイルを削除しますか？\nこの操作は取り消せません。",
             QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
         )
 
         if reply == QMessageBox.StandardButton.Yes:
             try:
-                # 全ての処理済みデータのキャッシュディレクトリを探す
-                cache_dirs_found = []
-
-                # 現在開いているファイルからキャッシュディレクトリを特定
-                for file_name in self.processed_data:
-                    if hasattr(self, "file_paths") and file_name in self.file_paths:
-                        file_path = self.file_paths[file_name]
-                        csv_dir = os.path.dirname(file_path)
-                        cache_dir = os.path.join(csv_dir, "results_AAT", "cache")
-                        if os.path.exists(cache_dir) and cache_dir not in cache_dirs_found:
-                            cache_dirs_found.append(cache_dir)
-
-                # キャッシュファイルを削除
                 total_deleted = 0
-                for cache_dir in cache_dirs_found:
+                for path_obj, cache_dir in cache_targets:
+                    base_name = path_obj.stem
+                    before_files = list(cache_dir.glob(f"{base_name}_*.pickle")) + list(
+                        cache_dir.glob(f"{base_name}_*_raw.h5")
+                    )
                     try:
-                        for filename in os.listdir(cache_dir):
-                            if filename.endswith((".pickle", ".h5")):
-                                file_path = os.path.join(cache_dir, filename)
-                                os.remove(file_path)
-                                total_deleted += 1
-                                logger.debug(f"キャッシュファイルを削除: {filename}")
+                        delete_cache(str(path_obj))
                     except Exception as e:
-                        logger.warning(f"キャッシュディレクトリのクリア中にエラー: {e}")
+                        logger.warning("キャッシュ削除中にエラー: %s", e)
+                        continue
+                    after_files = list(cache_dir.glob(f"{base_name}_*.pickle")) + list(
+                        cache_dir.glob(f"{base_name}_*_raw.h5")
+                    )
+                    total_deleted += max(0, len(before_files) - len(after_files))
 
                 if total_deleted > 0:
                     QMessageBox.information(
-                        self, "キャッシュクリア完了", f"{total_deleted}個のキャッシュファイルを削除しました。"
+                        self,
+                        "キャッシュクリア完了",
+                        f"{len(cache_dirs_found)}か所のキャッシュ保存先から{total_deleted}個のキャッシュファイルを削除しました。",
                     )
                     logger.info(f"キャッシュクリア完了: {total_deleted}ファイル削除")
                 else:
@@ -2039,7 +2724,7 @@ class MainWindow(QMainWindow):
         drag_mask = (drag_time >= xmin) & (drag_time <= xmax)
 
         # マスクが空の場合は何もしない
-        if not inner_mask.any() or not drag_mask.any():
+        if not inner_mask.any() and not drag_mask.any():
             QMessageBox.warning(self, "警告", "選択範囲内にデータがありません。")
             return
 
@@ -2084,12 +2769,10 @@ class MainWindow(QMainWindow):
             inner_stats (dict): Inner Capsuleの統計情報
             drag_stats (dict): Drag Shieldの統計情報
         """
-        from PyQt6.QtWidgets import (
+        from PySide6.QtWidgets import (
             QDialog,
             QLabel,
-            QPushButton,
             QTableWidget,
-            QTableWidgetItem,
             QVBoxLayout,
         )
 
@@ -2140,3 +2823,87 @@ class MainWindow(QMainWindow):
 
         dialog.setLayout(layout)
         dialog.exec()
+
+    def _on_toolbar_action_triggered(self, action):
+        """Matplotlibツールバーのアクションがトリガーされた時の処理"""
+        # サブプロット設定ボタンなどが押された後、少し遅延させてダイアログを探しテーマを適用する
+        QTimer.singleShot(100, self._apply_theme_to_matplotlib_dialogs)
+
+    def _convert_checkboxes_to_toggles(self, dialog):
+        """Matplotlibダイアログ内のQCheckBoxをToggleSwitch表示に差し替える"""
+        for checkbox in dialog.findChildren(QCheckBox):
+            # 既にToggleSwitchならスキップ
+            if isinstance(checkbox, ToggleSwitch):
+                continue
+
+            parent_widget = checkbox.parentWidget()
+            parent_layout = parent_widget.layout() if parent_widget else None
+            if parent_layout is None:
+                continue
+
+            toggle = ToggleSwitch(dialog)
+            toggle.setChecked(checkbox.isChecked())
+            toggle.setEnabled(checkbox.isEnabled())
+            toggle.setText(checkbox.text())
+            toggle.setToolTip(checkbox.toolTip())
+
+            # 双方向同期: 新しいトグル操作 -> 元チェックボックスに反映 -> 既存のシグナルも生きる
+            toggle.toggled.connect(checkbox.setChecked)
+            checkbox.toggled.connect(toggle.setChecked)
+
+            # 位置を保ったまま差し替え
+            parent_layout.replaceWidget(checkbox, toggle)
+            checkbox.hide()
+
+    def _apply_theme_to_matplotlib_dialogs(self):
+        """Matplotlibが開いたダイアログにテーマを適用する"""
+        from PySide6.QtWidgets import QDialog
+
+        for widget in QApplication.topLevelWidgets():
+            # タイトルで判別 (Matplotlibのバージョンによってタイトルが異なる可能性があるが、一般的には "Subplot Configuration")
+            if isinstance(widget, QDialog) and ("Subplot" in widget.windowTitle() or "Figure" in widget.windowTitle()):
+                # ダイアログ自体にスタイルシートを適用
+                # 背景色とテキスト色を強制的に設定
+                widget.setStyleSheet(
+                    f"""
+                    QDialog {{
+                        background-color: {Colors.BG_PRIMARY};
+                        color: {Colors.TEXT_PRIMARY};
+                    }}
+                    QLabel {{
+                        color: {Colors.TEXT_PRIMARY};
+                    }}
+                    QLineEdit, QSpinBox, QDoubleSpinBox {{
+                        background-color: {Colors.BG_TERTIARY};
+                        border: 1px solid {Colors.BORDER};
+                        border-radius: 4px;
+                        padding: 4px;
+                        color: {Colors.TEXT_PRIMARY};
+                    }}
+                    QComboBox {{
+                        background-color: {Colors.BG_TERTIARY};
+                        border: 1px solid {Colors.BORDER};
+                        border-radius: 4px;
+                        padding: 4px;
+                        color: {Colors.TEXT_PRIMARY};
+                    }}
+                    QTabWidget::pane {{
+                        border: 1px solid {Colors.BORDER};
+                    }}
+                    QTabBar::tab {{
+                        background: {Colors.BG_SECONDARY};
+                        color: {Colors.TEXT_PRIMARY};
+                        padding: 8px 12px;
+                        border: 1px solid {Colors.BORDER};
+                        border-bottom: none;
+                        border-top-left-radius: 4px;
+                        border-top-right-radius: 4px;
+                    }}
+                    QTabBar::tab:selected {{
+                        background: {Colors.BG_TERTIARY};
+                        border-bottom: 1px solid {Colors.BG_TERTIARY};
+                    }}
+                    {get_toggle_checkbox_styles()}
+                    """
+                )
+                self._convert_checkboxes_to_toggles(widget)
