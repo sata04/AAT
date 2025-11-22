@@ -73,7 +73,10 @@ uv pip install -e ".[build]"
 python scripts/build_mac_app.py
 ```
 
-実行後、`build/dist/AAT.app` が生成されます。既定ではリポジトリ直下の `favicon.ico` や `AATicon.png` を自動的に`.icns`へ変換してバンドルします。別のアイコンを利用したい場合は `--icon path/to/icon.png` のように指定してください (`.ico`/`.png`/`.icns` が利用可能)。
+- `build/dist/AAT.app` と `build/dmg/AAT.dmg` が生成されます。DMG の背景には `resources/packaging/dmg/dmg_background.tiff`（PNG 版も同梱）を使用し、/Applications へのリンクを配置します。
+- アイコンの既定値は `resources/packaging/icons/app_icon.png` です。別のアイコンを利用したい場合は `--icon path/to/icon.png` のように指定してください (`.ico`/`.png`/`.icns` が利用可能)。
+- DMG を作成せず `.app` のみ欲しい場合は `--skip-dmg` を付けます。背景差し替えは `--dmg-background path/to/bg.tiff`、ボリューム名変更は `--volume-name MyApp`、出力先変更は `--dmg-output build/dmg/MyApp.dmg` を指定してください。
+- 署名や公証処理は行っていません。必要に応じて生成後に `codesign` や公証を別途実施してください。
 
 > ℹ️ **ヒント**: macOSアプリバンドル（`AAT.app`）では初回起動時に Matplotlib のフォントキャッシュを `~/Library/Application Support/AAT/matplotlib` に保存し、2回目以降の起動を高速化します。開発中に `python main.py` を直接実行する場合はシステム既定の Matplotlib キャッシュ先が利用されます。`AAT_DEBUG=1` を指定すると起動時間のログを確認できます。
 
