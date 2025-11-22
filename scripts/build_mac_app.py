@@ -57,6 +57,42 @@ DMG_DIR = BUILD_DIR / "dmg"
 DEFAULT_DMG_BACKGROUND = DMG_ASSETS_DIR / "dmg_background.tiff"
 APP_NAME = "AAT"
 VERSION_FALLBACK = "0.0.0"
+HIDDEN_IMPORTS = [
+    "PySide6.QtGui",
+    "PySide6.QtCore",
+    "PySide6.QtWidgets",
+]
+# Qt Addons (WebEngine/Quick/QML等) が自動収集されるとバンドルサイズが急増するため、未使用のモジュールは明示的に除外する
+EXCLUDED_MODULES = [
+    "PySide6.Qt3DAnimation",
+    "PySide6.Qt3DCore",
+    "PySide6.Qt3DInput",
+    "PySide6.Qt3DLogic",
+    "PySide6.Qt3DRender",
+    "PySide6.QtMultimedia",
+    "PySide6.QtMultimediaWidgets",
+    "PySide6.QtPdf",
+    "PySide6.QtPdfWidgets",
+    "PySide6.QtQml",
+    "PySide6.QtQmlModels",
+    "PySide6.QtQmlWorkerScript",
+    "PySide6.QtQuick",
+    "PySide6.QtQuick3D",
+    "PySide6.QtQuickControls2",
+    "PySide6.QtQuickWidgets",
+    "PySide6.QtShaderTools",
+    "PySide6.QtVirtualKeyboard",
+    "PySide6.QtWebChannel",
+    "PySide6.QtWebEngine",
+    "PySide6.QtWebEngineCore",
+    "PySide6.QtWebEngineQuick",
+    "PySide6.QtWebEngineWidgets",
+]
+DATA_ASSETS: list[tuple[Path, str]] = [
+    (PROJECT_ROOT / "config" / "config.default.json", "config"),
+    (PROJECT_ROOT / "docs" / "user-manual.md", "docs"),
+    (PROJECT_ROOT / "gui" / "assets", "gui/assets"),
+]
 
 
 def parse_args() -> argparse.Namespace:
@@ -204,6 +240,7 @@ def build_app(icon_path: Path, bundle_identifier: str) -> Path:
     pyinstaller_args = [
         "--noconfirm",
         "--clean",
+        "--strip",
         "--windowed",
         f"--name={APP_NAME}",
         f"--icon={icon_path}",
@@ -211,13 +248,11 @@ def build_app(icon_path: Path, bundle_identifier: str) -> Path:
         f"--workpath={WORK_DIR}",
         f"--specpath={SPEC_DIR}",
         f"--osx-bundle-identifier={bundle_identifier}",
-        "--hidden-import=PySide6.QtGui",
-        "--hidden-import=PySide6.QtCore",
-        "--hidden-import=PySide6.QtWidgets",
-        f"--add-data={PROJECT_ROOT / 'config' / 'config.default.json'}{os.pathsep}config",
-        f"--add-data={PROJECT_ROOT / 'docs' / 'user-manual.md'}{os.pathsep}docs",
-        str(PROJECT_ROOT / "main.py"),
     ]
+    pyinstaller_args.extend([f"--hidden-import={module}" for module in HIDDEN_IMPORTS])
+    pyinstaller_args.extend([f"--exclude-module={module}" for module in EXCLUDED_MODULES])
+    pyinstaller_args.extend([f"--add-data={src}{os.pathsep}{dest}" for src, dest in DATA_ASSETS])
+    pyinstaller_args.append(str(PROJECT_ROOT / "main.py"))
 
     pyinstaller_module = importlib.import_module("PyInstaller.__main__")
     pyinstaller_module.run(pyinstaller_args)
@@ -330,7 +365,7 @@ def create_dmg(app_path: Path, background_path: Path, volume_name: str, icon_pat
 
     with TemporaryDirectory() as tmpdir:
         staging_dir = Path(tmpdir) / "dmg_root"
-        shutil.copytree(app_path, staging_dir / app_path.name)
+        shutil.copytree(app_path, staging_dir / app_path.name, symlinks=True)
         (staging_dir / "Applications").symlink_to("/Applications")
 
         background_dest = staging_dir / ".background" / background_path.name

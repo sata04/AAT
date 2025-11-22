@@ -38,7 +38,7 @@
           /\
          /  \     E2Eテスト (5%)
         /    \    - エンドツーエンドシナリオ
-       /──────\   
+       /──────\
       /        \  統合テスト (25%)
      /          \ - モジュール間の連携
     /────────────\
@@ -115,10 +115,10 @@ def sample_data():
     """テスト用のサンプルデータ"""
     time = np.arange(0, 10, 0.001)  # 10秒間のデータ
     acceleration = np.random.normal(0, 0.1, len(time))
-    
+
     # 同期点を追加（t=1秒）
     acceleration[1000:1003] = 2.0
-    
+
     return pd.DataFrame({
         'Time (s)': time,
         'Acceleration 1 (m/s²)': acceleration,
@@ -152,11 +152,11 @@ class TestDetectColumns:
     def test_detect_columns_standard_format(self, temp_csv_file):
         """標準的な列名の検出テスト"""
         time_cols, acc_cols = detect_columns(temp_csv_file)
-        
+
         assert len(time_cols) > 0
         assert "Time (s)" in time_cols
         assert len(acc_cols) >= 2
-        
+
     def test_detect_columns_japanese_format(self, tmp_path):
         """日本語列名の検出テスト"""
         df = pd.DataFrame({
@@ -166,7 +166,7 @@ class TestDetectColumns:
         })
         file_path = tmp_path / "japanese.csv"
         df.to_csv(file_path, index=False)
-        
+
         time_cols, acc_cols = detect_columns(str(file_path))
         assert '時間(s)' in time_cols
         assert '加速度1(m/s²)' in acc_cols
@@ -179,20 +179,20 @@ class TestLoadAndProcessData:
             'acceleration_column_inner_capsule': 'Acceleration 1 (m/s²)',
             'acceleration_column_drag_shield': 'Acceleration 2 (m/s²)'
         })
-        
+
         result = load_and_process_data(temp_csv_file, sample_config)
         time, gl_ic, gl_ds, adj_time = result
-        
+
         assert len(time) == len(gl_ic) == len(gl_ds) == len(adj_time)
         assert time[0] == 0  # 時間は0から開始
-        
+
     def test_missing_column_error(self, temp_csv_file, sample_config):
         """存在しない列指定時のエラーテスト"""
         sample_config['time_column'] = 'NonExistentColumn'
-        
+
         with pytest.raises(ColumnNotFoundError):
             load_and_process_data(temp_csv_file, sample_config)
-            
+
     def test_sync_point_detection(self, temp_csv_file, sample_config):
         """同期点検出のテスト"""
         sample_config.update({
@@ -201,9 +201,9 @@ class TestLoadAndProcessData:
             'acceleration_column_drag_shield': 'Acceleration 2 (m/s²)',
             'acceleration_threshold': 1.5
         })
-        
+
         _, _, _, adj_time = load_and_process_data(temp_csv_file, sample_config)
-        
+
         # 調整後の時間は同期点で0になる
         assert adj_time.min() < 0  # 同期前の時間は負
         assert 0 in adj_time.values or abs(adj_time[adj_time >= 0].iloc[0]) < 0.001
@@ -227,31 +227,31 @@ class TestCalculateStatistics:
             np.random.normal(0, 0.5, 5000),   # 高ノイズ
             np.random.normal(0, 0.1, 5000)    # 低ノイズ
         ]))
-        
+
         config = {"window_size": 0.1, "sampling_rate": 1000}
         mean_abs, start_time, min_std = calculate_statistics(
             gravity_level, time, config
         )
-        
+
         assert mean_abs is not None
         assert 5.0 <= start_time <= 9.9  # 低ノイズ区間で検出されるはず
         assert min_std < 0.2  # 低い標準偏差
-        
+
     def test_insufficient_data(self):
         """データ不足時のテスト"""
         time = pd.Series([0, 0.001])  # 2点のみ
         gravity_level = pd.Series([0.1, 0.2])
         config = {"window_size": 0.1, "sampling_rate": 1000}
-        
+
         result = calculate_statistics(gravity_level, time, config)
         assert result == (None, None, None)
-        
+
     def test_mismatched_lengths(self):
         """データ長不一致時のエラーテスト"""
         time = pd.Series([0, 1, 2])
         gravity_level = pd.Series([0.1, 0.2])  # 長さが異なる
         config = {"window_size": 0.1, "sampling_rate": 1000}
-        
+
         with pytest.raises(ValueError):
             calculate_statistics(gravity_level, time, config)
 
@@ -260,7 +260,7 @@ class TestCalculateRangeStatistics:
         """範囲統計の包括的テスト"""
         data = np.array([1, -2, 3, -4, 5])
         stats = calculate_range_statistics(data)
-        
+
         assert stats['mean'] == pytest.approx(0.6)
         assert stats['abs_mean'] == pytest.approx(3.0)
         assert stats['std'] == pytest.approx(3.13, rel=0.01)
@@ -268,11 +268,11 @@ class TestCalculateRangeStatistics:
         assert stats['max'] == 5
         assert stats['range'] == 9
         assert stats['count'] == 5
-        
+
     def test_empty_array(self):
         """空配列のテスト"""
         stats = calculate_range_statistics(np.array([]))
-        
+
         for key in ['mean', 'abs_mean', 'std', 'min', 'max', 'range']:
             assert stats[key] is None
         assert stats['count'] == 0
@@ -295,15 +295,15 @@ class TestCacheManager:
         config1 = {"param1": 1, "param2": "test"}
         config2 = {"param1": 1, "param2": "test"}
         config3 = {"param1": 2, "param2": "test"}
-        
+
         id1 = generate_cache_id("file.csv", config1)
         id2 = generate_cache_id("file.csv", config2)
         id3 = generate_cache_id("file.csv", config3)
-        
+
         assert id1 == id2  # 同じ設定なら同じID
         assert id1 != id3  # 異なる設定なら異なるID
         assert len(id1) == 16  # 16文字のハッシュ
-        
+
     def test_cache_save_and_load(self, tmp_path):
         """キャッシュの保存と読み込みテスト"""
         file_path = str(tmp_path / "data.csv")
@@ -313,28 +313,28 @@ class TestCacheManager:
             "metadata": {"version": "1.0"}
         }
         config = {"app_version": "9.1.0"}
-        
+
         # 保存
         success = save_to_cache(test_data, file_path, cache_id, config)
         assert success
-        
+
         # 読み込み
         loaded_data = load_from_cache(file_path, cache_id)
         assert loaded_data is not None
         assert loaded_data["data"] == [1, 2, 3]
         assert loaded_data["metadata"]["version"] == "1.0"
-        
+
     def test_cache_deletion(self, tmp_path):
         """キャッシュ削除のテスト"""
         file_path = str(tmp_path / "data.csv")
         cache_id = "test_cache_id"
         test_data = {"data": "test"}
         config = {"app_version": "9.1.0"}
-        
+
         # キャッシュを作成
         save_to_cache(test_data, file_path, cache_id, config)
         assert has_valid_cache(file_path, config)[0]
-        
+
         # キャッシュを削除
         success = delete_cache(file_path, cache_id)
         assert success
@@ -363,21 +363,21 @@ class TestDataPipeline:
             'acceleration_column_inner_capsule': 'Acceleration 1 (m/s²)',
             'acceleration_column_drag_shield': 'Acceleration 2 (m/s²)'
         })
-        
+
         # 1. データ読み込みと処理
         time, gl_ic, gl_ds, adj_time = load_and_process_data(
             temp_csv_file, sample_config
         )
-        
+
         # 2. フィルタリング
         f_time, f_gl_ic, f_gl_ds, f_adj_time, end_idx = filter_data(
             time, gl_ic, gl_ds, adj_time, sample_config
         )
-        
+
         # 3. 統計計算
         stats_ic = calculate_statistics(f_gl_ic, f_time, sample_config)
         stats_ds = calculate_statistics(f_gl_ds, f_time, sample_config)
-        
+
         # 4. エクスポート
         output_path = export_data(
             time, gl_ic, gl_ds, adj_time,
@@ -386,7 +386,7 @@ class TestDataPipeline:
             stats_ds[0], stats_ds[1], stats_ds[2],
             f_time, end_idx
         )
-        
+
         # 検証
         assert Path(output_path).exists()
         assert output_path.endswith('.xlsx')
@@ -410,23 +410,23 @@ class TestCacheIntegration:
             'acceleration_column_drag_shield': 'Acceleration 2 (m/s²)',
             'use_cache': True
         })
-        
+
         # 初回実行（キャッシュなし）
         start = time.time()
         result1 = load_and_process_data(temp_csv_file, sample_config)
         first_run_time = time.time() - start
-        
+
         # キャッシュが作成されたことを確認
         assert has_valid_cache(temp_csv_file, sample_config)[0]
-        
+
         # 2回目実行（キャッシュあり）
         start = time.time()
         result2 = load_and_process_data(temp_csv_file, sample_config)
         second_run_time = time.time() - start
-        
+
         # キャッシュの方が高速であることを確認
         assert second_run_time < first_run_time * 0.5
-        
+
         # 結果が同一であることを確認
         for i in range(4):
             assert result1[i].equals(result2[i])
@@ -459,7 +459,7 @@ class TestMainWindow:
         assert main_window.windowTitle() == "AAT - Acceleration Analysis Tool"
         assert main_window.select_file_button.isEnabled()
         assert main_window.g_quality_button.isEnabled() is False
-        
+
     def test_file_selection_button(self, main_window, qtbot, mocker):
         """ファイル選択ボタンのテスト"""
         # ファイルダイアログをモック
@@ -467,16 +467,16 @@ class TestMainWindow:
             'PySide6.QtWidgets.QFileDialog.getOpenFileNames',
             return_value=(["test.csv"], "")
         )
-        
+
         # ボタンクリック
         qtbot.mouseClick(
             main_window.select_file_button,
             Qt.MouseButton.LeftButton
         )
-        
+
         # ファイル処理が開始されることを確認
         assert main_window.current_file == "test.csv"
-        
+
     def test_settings_dialog(self, main_window, qtbot):
         """設定ダイアログのテスト"""
         # 設定ボタンをクリック
@@ -484,23 +484,23 @@ class TestMainWindow:
             main_window.settings_button,
             Qt.MouseButton.LeftButton
         )
-        
+
         # ダイアログが表示されることを確認
         assert main_window.settings_dialog is not None
         assert main_window.settings_dialog.isVisible()
-        
+
     def test_graph_interaction(self, main_window, qtbot):
         """グラフインタラクションのテスト"""
         # サンプルデータを設定
         import numpy as np
         time_data = np.arange(0, 10, 0.1)
         gravity_data = np.sin(time_data)
-        
+
         main_window.plot_gravity_levels(
             time_data, gravity_data, gravity_data * 0.8,
             time_data, None, None, None
         )
-        
+
         # グラフが描画されたことを確認
         assert len(main_window.ax1.lines) > 0
         assert len(main_window.ax2.lines) > 0
@@ -529,14 +529,14 @@ class TestGQualityWorker:
             'g_quality_step': 0.1,
             'sampling_rate': 1000
         }
-        
+
         # ワーカー作成
         worker = GQualityWorker(time, gl_ic, gl_ds, config)
-        
+
         # シグナル監視
         with qtbot.waitSignals([worker.finished, worker.result], timeout=5000):
             worker.start()
-            
+
         # 結果の検証
         assert hasattr(worker, 'g_quality_data')
         assert 'window_sizes' in worker.g_quality_data
@@ -553,11 +553,11 @@ def test_theme_switching(main_window, qtbot):
     # ダークモードに切り替え
     main_window.dark_theme_action.trigger()
     assert main_window.current_theme_type == ThemeType.DARK
-    
+
     # ライトモードに切り替え
     main_window.light_theme_action.trigger()
     assert main_window.current_theme_type == ThemeType.LIGHT
-    
+
     # システムデフォルトに切り替え
     main_window.system_theme_action.trigger()
     assert main_window.current_theme_type == ThemeType.SYSTEM
@@ -586,46 +586,46 @@ class TestPerformance:
         n_points = 10_000_000  # 1000万点
         time_data = np.arange(0, n_points / 1000, 0.001)
         acc_data = np.random.normal(0, 0.1, n_points)
-        
+
         df = pd.DataFrame({
             'Time (s)': time_data,
             'Acceleration 1 (m/s²)': acc_data,
             'Acceleration 2 (m/s²)': acc_data * 0.8
         })
-        
+
         file_path = tmp_path / "large_data.csv"
         df.to_csv(file_path, index=False)
-        
+
         sample_config.update({
             'time_column': 'Time (s)',
             'acceleration_column_inner_capsule': 'Acceleration 1 (m/s²)',
             'acceleration_column_drag_shield': 'Acceleration 2 (m/s²)'
         })
-        
+
         # 処理時間測定
         start_time = time.time()
         result = load_and_process_data(str(file_path), sample_config)
         processing_time = time.time() - start_time
-        
+
         # パフォーマンス基準: 100MBを30秒以内で処理
         assert processing_time < 30
         assert result[0] is not None
-        
+
     @pytest.mark.slow
     def test_memory_usage(self, tmp_path, sample_config):
         """メモリ使用量のテスト"""
         import psutil
         import os
-        
+
         process = psutil.Process(os.getpid())
         initial_memory = process.memory_info().rss / 1024 / 1024  # MB
-        
+
         # 処理実行
         # ... (大容量ファイル処理)
-        
+
         final_memory = process.memory_info().rss / 1024 / 1024  # MB
         memory_increase = final_memory - initial_memory
-        
+
         # メモリ使用量が2GB以下であることを確認
         assert memory_increase < 2048
 ```
@@ -644,20 +644,20 @@ import numpy as np
 def create_sample_data():
     """標準的なテストデータの作成"""
     time = np.arange(0, 10, 0.001)
-    
+
     # 同期点を含む加速度データ
     acc = np.random.normal(0, 0.05, len(time))
     acc[1000:1005] = 2.0  # t=1秒に同期点
-    
+
     # 微小重力区間（t=3-8秒）
     acc[3000:8000] = np.random.normal(0, 0.01, 5000)
-    
+
     df = pd.DataFrame({
         'データセット1:時間(s)': time,
         'データセット1:Z-axis acceleration 1(m/s²)': acc,
         'データセット1:Z-axis acceleration 2(m/s²)': acc * 0.8
     })
-    
+
     df.to_csv('tests/fixtures/sample_data.csv', index=False)
 
 def create_invalid_data():
@@ -668,7 +668,7 @@ def create_invalid_data():
         'Column2': [4, 5, 6]
     })
     df1.to_csv('tests/fixtures/invalid_columns.csv', index=False)
-    
+
     # データが不足
     df2 = pd.DataFrame({
         'Time (s)': [0, 0.001],
@@ -704,24 +704,24 @@ jobs:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
         python-version: ['3.9', '3.10', '3.11']
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: ${{ matrix.python-version }}
-    
+
     - name: Install dependencies
       run: |
         python -m pip install --upgrade pip
         pip install -e ".[dev]"
-    
+
     - name: Run tests with coverage
       run: |
         pytest --cov=core --cov=gui --cov-report=xml --cov-report=term
-    
+
     - name: Upload coverage
       uses: codecov/codecov-action@v3
       with:
@@ -787,10 +787,10 @@ def test_example():
     # Arrange: テストの準備
     data = create_test_data()
     config = get_test_config()
-    
+
     # Act: テスト対象の実行
     result = process_data(data, config)
-    
+
     # Assert: 結果の検証
     assert result is not None
     assert len(result) == expected_length
@@ -850,11 +850,11 @@ def test_error_cases():
     # 境界値
     with pytest.raises(ValueError):
         process_data([])  # 空のデータ
-        
+
     # 異常値
     with pytest.raises(ValueError):
         process_data(None)  # Null
-        
+
     # 型エラー
     with pytest.raises(TypeError):
         process_data("invalid")  # 不正な型
@@ -868,14 +868,14 @@ def test_with_mock(mocker):
     # ファイルシステムのモック
     mock_exists = mocker.patch('pathlib.Path.exists')
     mock_exists.return_value = True
-    
+
     # 時間のモック
     mock_time = mocker.patch('time.time')
     mock_time.return_value = 1234567890.0
-    
+
     # テスト実行
     result = function_under_test()
-    
+
     # モックが呼ばれたことを確認
     mock_exists.assert_called_once()
 ```

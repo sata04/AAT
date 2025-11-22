@@ -37,7 +37,12 @@ def detect_columns(file_path: str) -> tuple[list[str], list[str]]:
         ValueError: 列検出中にエラーが発生した場合
     """
     try:
-        data = pd.read_csv(file_path)
+        try:
+            data = pd.read_csv(file_path)
+        except UnicodeDecodeError:
+            logger.warning(f"UTF-8での読み込みに失敗しました。cp932で再試行します: {file_path}")
+            data = pd.read_csv(file_path, encoding="cp932")
+
         logger.debug(f"読み込んだCSVのカラム: {data.columns.tolist()}")
 
         time_columns: list[str] = []
@@ -100,7 +105,12 @@ def load_and_process_data(file_path: str, config: dict[str, Any]) -> tuple[pd.Se
     """
     logger.info(f"ファイルからデータを読み込み: {file_path}")
     try:
-        data = pd.read_csv(file_path)
+        try:
+            data = pd.read_csv(file_path)
+        except UnicodeDecodeError:
+            logger.warning(f"UTF-8での読み込みに失敗しました。cp932で再試行します: {file_path}")
+            data = pd.read_csv(file_path, encoding="cp932")
+
         logger.debug(f"読み込んだCSVのカラム: {data.columns.tolist()}")
 
         use_inner = config.get("use_inner_acceleration", True)

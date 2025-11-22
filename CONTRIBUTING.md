@@ -108,12 +108,42 @@ source venv/bin/activate  # Windows: venv\Scripts\activate
 # 5. 開発依存関係をインストール
 pip install -e ".[dev]"
 
-# 6. pre-commitフックをセットアップ
-pre-commit install
+# 6. Git フックをセットアップ
+pre-commit install --hook-type pre-commit --hook-type pre-push
 
 # 7. 動作確認
 python main.py --debug
 ```
+
+### Git フックについて
+
+このプロジェクトでは、コード品質を保つために2段階のGit フックを使用しています：
+
+**pre-commit（コミット前）:**
+- Ruff linter と formatter による構文チェックとフォーマット
+- 基本的なファイルチェック（trailing whitespace、YAML/JSON/TOML構文など）
+- 高速に実行されるため、頻繁なコミットを妨げません
+
+**pre-push（プッシュ前）:**
+- pytest による全テストスイートの実行
+- コードカバレッジの確認
+- プッシュ前に品質を保証しますが、時間がかかります
+
+**フックをバイパスする方法:**
+
+緊急時やWIP（Work In Progress）のコミット時には、`--no-verify` フラグでフックをスキップできます：
+
+```bash
+# コミット時にpre-commitフックをスキップ
+git commit --no-verify -m "WIP: Experimental feature"
+
+# プッシュ時にpre-pushフックをスキップ
+git push --no-verify
+```
+
+⚠️ **注意**: 通常はフックをスキップしないでください。プロダクションブランチへのマージ前には必ず全チェックを通過させてください。
+
+
 
 ---
 
@@ -190,48 +220,48 @@ import pandas as pd
 
 class DataAnalyzer:
     """データ分析クラス
-    
+
     微小重力実験データの分析機能を提供します。
-    
+
     Attributes:
         config: 設定辞書
         logger: ロガーインスタンス
     """
-    
+
     def __init__(self, config: Dict[str, Any]) -> None:
         """初期化
-        
+
         Args:
             config: 設定辞書
         """
         self.config = config
         self.logger = get_logger(__name__)
-        
+
     def analyze(
         self,
         data: pd.DataFrame,
         window_size: Optional[float] = None
     ) -> Dict[str, float]:
         """データを分析
-        
+
         Args:
             data: 分析対象のデータフレーム
             window_size: ウィンドウサイズ（秒）、Noneの場合は設定値を使用
-            
+
         Returns:
             分析結果の辞書
-            
+
         Raises:
             ValueError: データが不正な場合
         """
         if data.empty:
             raise ValueError("データが空です")
-            
+
         window_size = window_size or self.config.get("window_size", 0.1)
-        
+
         # 分析処理
         results = self._perform_analysis(data, window_size)
-        
+
         self.logger.info(f"分析完了: {len(data)}件のデータを処理")
         return results
 ```

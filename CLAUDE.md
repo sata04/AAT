@@ -254,7 +254,7 @@ uv run pre-commit run --all-files    # Test hooks
 
 **VSCode Integration**: Project includes `.vscode/settings.json` and `.vscode/extensions.json` for:
 - Ruff auto-formatting on save
-- Import organization  
+- Import organization
 - Recommended extensions: charliermarsh.ruff, ms-python.python, ms-python.debugpy
 - uv support through Python extension
 

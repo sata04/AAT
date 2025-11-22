@@ -137,8 +137,17 @@ dmypy.json
 
 # Allow .vscode/settings.json and .vscode/extensions.json for team sharing
 
+# Tool caches
+.ruff_cache/
+.uv-cache/
+
+# AI assistant configurations (user-specific)
+.claude/
+.gemini/
+
 # AAT-specific files
 # User configuration files (contain user-specific settings)
+.aat_config/
 config.json
 *.bak
 
@@ -162,20 +171,18 @@ test_data/
 **/sample_data/
 **/test_data/
 
+# Test fixtures (contains experimental data)
+tests/fixtures/
+
 # Application logs
 AAT.log
 AAT_*.log
-
-# Test coverage reports
-.coverage
-htmlcov/
-.pytest_cache/
 
 # Documentation build artifacts
 docs/_build/
 docs/build/
 
-# Build and distribution artifacts
+# Build and distribution artifacts (includes macOS .app and .dmg files)
 build/
 dist/
 *.egg-info/

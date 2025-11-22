@@ -28,6 +28,7 @@ dev = [
     "pytest-cov>=4.0.0",
     "pytest-qt>=4.0.0",
     "pytest-mock>=3.10.0",
+    "pre-commit>=4.0.0",
 ]
 build = [
     "pyinstaller>=6.10",
@@ -103,6 +104,7 @@ docstring-code-line-length = "dynamic"
 [dependency-groups]
 dev = [
     "ruff==0.12.3",
+    "pre-commit>=4.0.0",
 ]
 build = [
     "pyinstaller>=6.10",

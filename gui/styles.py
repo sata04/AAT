@@ -294,7 +294,7 @@ def get_stylesheet():
         background-color: {Colors.BG_TERTIARY};
         color: {Colors.TEXT_DISABLED};
     }}
-    
+
     /* Secondary Button (Outline) */
     QPushButton#Secondary {{
         background-color: transparent;
@@ -357,7 +357,7 @@ def get_stylesheet():
         top: 1px;
         left: 1px;
     }}
-    
+
     /* QComboBox Popup List */
     QComboBox QAbstractItemView {{
         background-color: {Colors.BG_SECONDARY};
@@ -435,7 +435,7 @@ def get_stylesheet():
         background-color: {Colors.SECONDARY};
         border-radius: 5px;
     }}
-    
+
     /* Splitter */
     QSplitter::handle {{
         background-color: {Colors.BORDER};

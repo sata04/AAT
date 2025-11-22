@@ -200,7 +200,7 @@ graph TD
 def detect_sync_point(acceleration_data, threshold):
     """
     加速度データから同期点を検出
-    
+
     1. 加速度の絶対値が閾値を超える最初の点を検出
     2. ノイズ除去のため、連続する複数点での確認
     3. 検出失敗時は例外を発生
@@ -231,7 +231,7 @@ gravity_level (μG) = (acceleration / gravity_constant) × 10^6
 def find_min_std_window(data, window_size, sampling_rate):
     """
     スライディングウィンドウで最小標準偏差区間を検出
-    
+
     1. ウィンドウサイズをサンプル数に変換
     2. 全データをスライディングウィンドウで走査
     3. 各ウィンドウの標準偏差を計算
@@ -241,14 +241,14 @@ def find_min_std_window(data, window_size, sampling_rate):
     window_samples = int(window_size * sampling_rate)
     min_std = float('inf')
     best_window_start = 0
-    
+
     for i in range(len(data) - window_samples + 1):
         window_data = data[i:i + window_samples]
         std = np.std(window_data)
         if std < min_std:
             min_std = std
             best_window_start = i
-    
+
     return {
         'start_time': best_window_start / sampling_rate,
         'min_std': min_std,
@@ -314,25 +314,25 @@ config = {
     'acceleration_column_drag_shield': str,
     'sampling_rate': int,                 # Hz
     'gravity_constant': float,            # m/s²
-    
+
     # 同期・フィルタ設定
     'acceleration_threshold': float,      # m/s²
     'end_gravity_level': float,          # μG
     'min_seconds_after_start': float,    # 秒
-    
+
     # 統計設定
     'window_size': float,                # 秒
-    
+
     # G-quality設定
     'g_quality_start': float,            # 秒
     'g_quality_end': float,              # 秒
     'g_quality_step': float,             # 秒
     'auto_calculate_g_quality': bool,
-    
+
     # 表示設定
     'ylim_min': float,                   # μG
     'ylim_max': float,                   # μG
-    
+
     # システム設定
     'use_cache': bool,
     'app_version': str
@@ -351,12 +351,12 @@ class MainWindow(QMainWindow):
     # ファイル処理関連
     file_loaded = Signal(str)          # ファイル読み込み完了
     file_error = Signal(str)           # ファイルエラー
-    
+
     # 処理進捗
     progress_started = Signal(str)     # 処理開始
     progress_updated = Signal(int)     # 進捗更新（0-100）
     progress_finished = Signal()       # 処理完了
-    
+
     # データ更新
     data_updated = Signal(dict)        # データ更新
     statistics_updated = Signal(dict)  # 統計更新
@@ -368,7 +368,7 @@ class GQualityWorker(QThread):
     # 進捗報告
     progress = Signal(int)             # 進捗率
     status = Signal(str)               # ステータスメッセージ
-    
+
     # 結果報告
     result = Signal(dict)              # 解析結果
     error = Signal(str)                # エラーメッセージ
@@ -517,17 +517,17 @@ except MemoryError:
 ```python
 class AnalysisPlugin(ABC):
     """解析プラグインの基底クラス"""
-    
+
     @abstractmethod
     def name(self) -> str:
         """プラグイン名"""
         pass
-    
+
     @abstractmethod
     def analyze(self, data: pd.DataFrame) -> dict:
         """解析実行"""
         pass
-    
+
     @abstractmethod
     def visualize(self, results: dict) -> QWidget:
         """結果の可視化"""

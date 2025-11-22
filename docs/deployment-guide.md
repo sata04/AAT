@@ -367,25 +367,25 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, windows-latest, macos-latest]
-    
+
     steps:
     - uses: actions/checkout@v3
-    
+
     - name: Set up Python
       uses: actions/setup-python@v4
       with:
         python-version: '3.11'
-    
+
     - name: Install dependencies
       run: |
         pip install -e ".[dev]"
         pip install pyinstaller
-    
+
     - name: Build application
       run: pyinstaller --clean aat.spec
-    
+
     # パッケージングステップは削除されました
-    
+
     - name: Upload Release Asset
       uses: actions/upload-release-asset@v1
       env:
@@ -403,7 +403,7 @@ jobs:
 <!-- download.html -->
 <div class="download-section">
     <h2>AAT v10.0.0 ダウンロード</h2>
-    
+
     <div class="platform-downloads">
         <div class="windows">
             <h3>Windows</h3>
@@ -412,7 +412,7 @@ jobs:
             </a>
             <p>Windows 10/11 (64-bit)</p>
         </div>
-        
+
         <div class="macos">
             <h3>macOS</h3>
             <a href="/downloads/AAT-10.0.0-macOS.dmg" class="download-button">
@@ -420,7 +420,7 @@ jobs:
             </a>
             <p>macOS 10.15以降</p>
         </div>
-        
+
         <div class="linux">
             <h3>Linux</h3>
             <a href="/downloads/AAT-10.0.0-x86_64.AppImage" class="download-button">
@@ -479,18 +479,18 @@ RequestExecutionLevel admin
 ; Installer Section
 Section "AAT" SecMain
     SetOutPath "$INSTDIR"
-    
+
     ; Copy files
     File /r "dist\AAT\*.*"
-    
+
     ; Create shortcuts
     CreateDirectory "$SMPROGRAMS\AAT"
     CreateShortcut "$SMPROGRAMS\AAT\AAT.lnk" "$INSTDIR\AAT.exe"
     CreateShortcut "$DESKTOP\AAT.lnk" "$INSTDIR\AAT.exe"
-    
+
     ; Write uninstaller
     WriteUninstaller "$INSTDIR\Uninstall.exe"
-    
+
     ; Registry entries
     WriteRegStr HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\AAT" \
                      "DisplayName" "AAT - Acceleration Analysis Tool"
@@ -505,7 +505,7 @@ Section "Uninstall"
     Delete "$SMPROGRAMS\AAT\*.*"
     RMDir "$SMPROGRAMS\AAT"
     Delete "$DESKTOP\AAT.lnk"
-    
+
     DeleteRegKey HKLM "Software\Microsoft\Windows\CurrentVersion\Uninstall\AAT"
 SectionEnd
 ```
@@ -540,16 +540,16 @@ from PySide6.QtCore import QThread, Signal
 
 class UpdateChecker(QThread):
     update_available = Signal(str)  # 新バージョン番号
-    
+
     GITHUB_API_URL = "https://api.github.com/repos/sata04/AAT/releases/latest"
-    
+
     def run(self):
         try:
             response = requests.get(self.GITHUB_API_URL, timeout=5)
             if response.status_code == 200:
                 data = response.json()
                 latest_version = data['tag_name'].lstrip('v')
-                
+
                 from core.version import APP_VERSION
                 if version.parse(latest_version) > version.parse(APP_VERSION):
                     self.update_available.emit(latest_version)
@@ -567,16 +567,16 @@ class UpdateDialog(QDialog):
     def __init__(self, new_version, parent=None):
         super().__init__(parent)
         self.setWindowTitle("アップデート通知")
-        
+
         layout = QVBoxLayout()
-        
+
         message = QLabel(f"新しいバージョン {new_version} が利用可能です。")
         layout.addWidget(message)
-        
+
         download_button = QPushButton("ダウンロードページを開く")
         download_button.clicked.connect(self.open_download_page)
         layout.addWidget(download_button)
-        
+
         self.setLayout(layout)
 ```
 

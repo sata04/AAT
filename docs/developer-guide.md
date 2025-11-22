@@ -251,12 +251,12 @@ def process_data(
 ) -> Tuple[pd.Series, pd.Series]:
     """
     データを処理して重力レベルを計算
-    
+
     Args:
         file_path: CSVファイルパス
         config: 設定辞書
         use_cache: キャッシュ使用フラグ
-        
+
     Returns:
         Inner CapsuleとDrag Shieldの重力レベル
     """
@@ -280,19 +280,19 @@ data_processor.py - データ処理モジュール
 def detect_columns(file_path: str) -> Tuple[List[str], List[str]]:
     """
     CSVファイルから時間列と加速度列を自動検出
-    
+
     キーワードベースの列検出アルゴリズムを使用して、
     時間列と加速度列の候補を特定します。
-    
+
     Args:
         file_path: 解析対象のCSVファイルパス
-        
+
     Returns:
         (時間列候補リスト, 加速度列候補リスト)のタプル
-        
+
     Raises:
         DataLoadError: ファイル読み込みエラー
-        
+
     Example:
         >>> time_cols, acc_cols = detect_columns("data.csv")
         >>> print(f"時間列: {time_cols[0]}")
@@ -336,12 +336,12 @@ class MainWindow(QMainWindow):
     # Signalは クラスレベルで定義
     data_loaded = Signal(str)
     progress_updated = Signal(int)
-    
+
     def __init__(self):
         super().__init__()
         # Signal接続は初期化時に
         self.data_loaded.connect(self.on_data_loaded)
-        
+
     @Slot(str)
     def on_data_loaded(self, file_path: str):
         """データ読み込み完了時の処理"""
@@ -354,12 +354,12 @@ class DataProcessingWorker(QThread):
     progress = Signal(int)
     finished = Signal(dict)
     error = Signal(str)
-    
+
     def __init__(self, file_path: str, config: dict):
         super().__init__()
         self.file_path = file_path
         self.config = config
-        
+
     def run(self):
         try:
             # 重い処理
@@ -475,10 +475,10 @@ PR テンプレート：
 def calculate_rms(data: np.ndarray) -> float:
     """
     Root Mean Square（二乗平均平方根）を計算
-    
+
     Args:
         data: 入力データ配列
-        
+
     Returns:
         RMS値
     """
@@ -492,11 +492,11 @@ def calculate_rms(data: np.ndarray) -> float:
 def process_statistics(gravity_level: pd.Series, config: dict) -> dict:
     # 既存の統計計算
     stats = calculate_statistics(gravity_level, time, config)
-    
+
     # 新しい指標を追加
     rms_value = calculate_rms(gravity_level.values)
     stats['rms'] = rms_value
-    
+
     return stats
 ```
 
@@ -564,26 +564,26 @@ class TestStatistics:
         time = pd.Series(np.arange(0, 1, 0.001))
         gravity = pd.Series(np.random.normal(0, 0.1, 1000))
         return time, gravity
-        
+
     def test_calculate_statistics_normal(self, sample_data):
         """正常系テスト"""
         time, gravity = sample_data
         config = {"window_size": 0.1, "sampling_rate": 1000}
-        
+
         mean_abs, start_time, min_std = calculate_statistics(
             gravity, time, config
         )
-        
+
         assert mean_abs is not None
         assert 0 <= start_time <= 0.9
         assert min_std > 0
-        
+
     def test_calculate_statistics_empty_data(self):
         """空データのテスト"""
         time = pd.Series([])
         gravity = pd.Series([])
         config = {"window_size": 0.1, "sampling_rate": 1000}
-        
+
         result = calculate_statistics(gravity, time, config)
         assert result == (None, None, None)
 ```
@@ -609,7 +609,7 @@ def test_file_selection_button(main_window, qtbot):
         main_window.select_file_button,
         Qt.MouseButton.LeftButton
     )
-    
+
     # ダイアログが開くことを確認（モック化が必要）
     assert main_window.file_dialog_opened
 ```
@@ -650,7 +650,7 @@ logger = get_logger(__name__)
 
 def process_data(file_path: str):
     logger.debug(f"処理開始: {file_path}")
-    
+
     try:
         # 処理
         logger.info(f"処理成功: {record_count}件")
@@ -703,10 +703,10 @@ import pstats
 def profile_function():
     profiler = cProfile.Profile()
     profiler.enable()
-    
+
     # プロファイル対象の処理
     process_large_dataset()
-    
+
     profiler.disable()
     stats = pstats.Stats(profiler)
     stats.sort_stats('cumulative')
@@ -750,14 +750,14 @@ class AsyncDataLoader(QThread):
     def __init__(self, file_paths: List[str]):
         super().__init__()
         self.file_paths = file_paths
-        
+
     def run(self):
         with ThreadPoolExecutor(max_workers=4) as executor:
             futures = []
             for path in self.file_paths:
                 future = executor.submit(self.load_file, path)
                 futures.append(future)
-                
+
             for future in as_completed(futures):
                 result = future.result()
                 self.file_loaded.emit(result)
@@ -875,11 +875,11 @@ class NewFeatureError(AATException):
 class NewAnalysisWorker(QThread):
     progress = Signal(int)
     result = Signal(dict)
-    
+
     def __init__(self, data: pd.DataFrame):
         super().__init__()
         self.data = data
-        
+
     def run(self):
         # 重い処理を実行
         for i in range(100):
