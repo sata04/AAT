@@ -4,6 +4,7 @@
 
 ![Python](https://img.shields.io/badge/Python-3.7+-blue.svg)
 ![License](https://img.shields.io/badge/License-Apache%202.0-green.svg)
+[![codecov](https://codecov.io/github/sata04/AAT/graph/badge.svg?token=I4FGAIJ6EQ)](https://codecov.io/github/sata04/AAT)
 
 ## 📖 概要
 
