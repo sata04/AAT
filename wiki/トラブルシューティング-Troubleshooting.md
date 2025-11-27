@@ -3,7 +3,7 @@
 このページでは、AATの使用中に発生する可能性のある問題と解決方法を説明します。
 
 > [!NOTE]
-> より詳細な情報は [docs/user-manual.md](../docs/user-manual.md) もご覧ください。
+> より詳細な情報は [docs/user-manual.md](https://github.com/sata04/AAT/blob/main/docs/user-manual.md) もご覧ください。
 
 ---
 

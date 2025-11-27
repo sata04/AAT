@@ -3,7 +3,7 @@
 このページでは、AATの開発に参加するための情報を提供します。
 
 > [!NOTE]
-> 詳細情報は [docs/developer-guide.md](../docs/developer-guide.md) をご覧ください。
+> 詳細情報は [docs/developer-guide.md](https://github.com/sata04/AAT/blob/main/docs/developer-guide.md) をご覧ください。
 
 ---
 
@@ -58,7 +58,7 @@ uv run pytest tests/test_data_processor.py
 uv run pytest -m "not gui"
 ```
 
-詳細は **[docs/testing-guide.md](../docs/testing-guide.md)** を参照してください。
+詳細は **[docs/testing-guide.md](https://github.com/sata04/AAT/blob/main/docs/testing-guide.md)** を参照してください。
 
 ---
 
@@ -211,4 +211,4 @@ python scripts/build_mac_app.py
 
 - **[[プロジェクト構造-Project-Structure]]** - コード構成の理解
 - **[[APIリファレンス-API-Reference]]** - APIの詳細
-- **[Testing Guide](../docs/testing-guide.md)** - テスト戦略
+- **[Testing Guide](https://github.com/sata04/AAT/blob/main/docs/testing-guide.md)** - テスト戦略

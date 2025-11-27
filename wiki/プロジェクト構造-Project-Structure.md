@@ -99,7 +99,7 @@ AAT/
 
 データ処理とビジネスロジックを担当。GUIに依存しない設計。
 
-#### [`data_processor.py`](../core/data_processor.py)
+#### [`data_processor.py`](https://github.com/sata04/AAT/blob/main/core/data_processor.py)
 
 **責務**: CSVファイルの読み込みと重力レベル計算
 
@@ -108,7 +108,7 @@ AAT/
 - `load_and_process_data()` - データ読み込みと処理
 - `filter_data()` - データフィルタリング
 
-#### [`statistics.py`](../core/statistics.py)
+#### [`statistics.py`](https://github.com/sata04/AAT/blob/main/core/statistics.py)
 
 **責務**: 統計計算
 
@@ -116,7 +116,7 @@ AAT/
 - `calculate_statistics()` - スライディングウィンドウ統計
 - `calculate_range_statistics()` - 範囲選択統計
 
-#### [`cache_manager.py`](../core/cache_manager.py)
+#### [`cache_manager.py`](https://github.com/sata04/AAT/blob/main/core/cache_manager.py)
 
 **責務**: 処理済みデータのキャッシュ管理
 
@@ -126,7 +126,7 @@ AAT/
 - `load_from_cache()` - キャッシュ読み込み
 - `has_valid_cache()` - キャッシュ有効性確認
 
-#### [`export.py`](../core/export.py)
+#### [`export.py`](https://github.com/sata04/AAT/blob/main/core/export.py)
 
 **責務**: Excelファイルとグラフの出力
 
@@ -135,7 +135,7 @@ AAT/
 - `export_g_quality_data()` - G-quality評価結果のエクスポート
 - `create_output_directories()` - 出力ディレクトリ作成
 
-#### [`config.py`](../core/config.py)
+#### [`config.py`](https://github.com/sata04/AAT/blob/main/core/config.py)
 
 **責務**: 設定ファイルの読み書き
 
@@ -144,7 +144,7 @@ AAT/
 - `save_config()` - 設定保存
 - `get_user_config_dir()` - ユーザー設定ディレクトリ取得
 
-#### [`exceptions.py`](../core/exceptions.py)
+#### [`exceptions.py`](https://github.com/sata04/AAT/blob/main/core/exceptions.py)
 
 **責務**: カスタム例外定義
 
@@ -159,7 +159,7 @@ AAT/
 
 ユーザーインターフェースを担当。PySide6ベース。
 
-#### [`main_window.py`](../gui/main_window.py)
+#### [`main_window.py`](https://github.com/sata04/AAT/blob/main/gui/main_window.py)
 
 **責務**: メインウィンドウの実装（最大のファイル、約2900行）
 
@@ -169,28 +169,28 @@ AAT/
 - `MainWindow._plot_data()` - グラフ描画
 - `MainWindow._handle_file_selection()` - ファイル選択処理
 
-#### [`workers.py`](../gui/workers.py)
+#### [`workers.py`](https://github.com/sata04/AAT/blob/main/gui/workers.py)
 
 **責務**: バックグラウンド処理
 
 主なクラス:
 - `GQualityWorker` - G-quality評価ワーカー（QThread）
 
-#### [`settings_dialog.py`](../gui/settings_dialog.py)
+#### [`settings_dialog.py`](https://github.com/sata04/AAT/blob/main/gui/settings_dialog.py)
 
 **責務**: 設定ダイアログ
 
 主なクラス:
 - `SettingsDialog` - 設定UI
 
-#### [`column_selector_dialog.py`](../gui/column_selector_dialog.py)
+#### [`column_selector_dialog.py`](https://github.com/sata04/AAT/blob/main/gui/column_selector_dialog.py)
 
 **責務**: 列選択ダイアログ
 
 主なクラス:
 - `ColumnSelectorDialog` - 列選択UI
 
-#### [`styles.py`](../gui/styles.py)
+#### [`styles.py`](https://github.com/sata04/AAT/blob/main/gui/styles.py)
 
 **責務**: テーマとスタイル管理
 
@@ -282,7 +282,7 @@ graph TD
 - `pytest-qt`を使用したGUIテスト
 - メインウィンドウの動作を検証
 
-詳細は **[[テストガイド]]** をご覧ください（既存の`docs/testing-guide.md`を参照）。
+詳細は [docs/testing-guide.md](https://github.com/sata04/AAT/blob/main/docs/testing-guide.md) をご覧ください。
 
 ---
 

@@ -3,7 +3,7 @@
 このページでは、AATのコアモジュールのAPI仕様を説明します。
 
 > [!NOTE]
-> より詳細な情報は [docs/api-reference.md](../docs/api-reference.md) をご覧ください。
+> より詳細な情報は [docs/api-reference.md](https://github.com/sata04/AAT/blob/main/docs/api-reference.md) をご覧ください。
 
 ---
 
@@ -74,7 +74,7 @@ gl_inner, gl_drag, time, adj_time = load_and_process_data('data.csv', config)
 
 データをフィルタリングして微小重力環境の範囲を抽出します。
 
-詳細は [APIドキュメント](../docs/api-reference.md) を参照してください。
+詳細は [APIドキュメント](https://github.com/sata04/AAT/blob/main/docs/api-reference.md) を参照してください。
 
 ---
 
@@ -296,8 +296,8 @@ export_data(
 
 より詳細なAPI仕様は、以下のドキュメントを参照してください:
 
-- [docs/api-reference.md](../docs/api-reference.md) - 完全なAPIリファレンス
-- [docs/developer-guide.md](../docs/developer-guide.md) - 開発者向けガイド
+- [docs/api-reference.md](https://github.com/sata04/AAT/blob/main/docs/api-reference.md) - 完全なAPIリファレンス
+- [docs/developer-guide.md](https://github.com/sata04/AAT/blob/main/docs/developer-guide.md) - 開発者向けガイド
 
 ---
 

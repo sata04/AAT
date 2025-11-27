@@ -19,7 +19,7 @@ AATは **Apache License 2.0** の下で公開されています。
 
 ### 完全なライセンス文
 
-完全なライセンス文は [LICENSE.md](../LICENSE.md) をご覧ください。
+完全なライセンス文は [LICENSE.md](https://github.com/sata04/AAT/blob/main/LICENSE.md) をご覧ください。
 
 ---
 
@@ -221,9 +221,9 @@ OpenAI Codex、Google Gemini、Anthropic Claudeをはじめとする複数のAI�
 
 ## 🔗 関連リンク
 
-- [完全な貢献ガイド](../CONTRIBUTING.md)
-- [開発者ガイド](../docs/developer-guide.md)
-- [テストガイド](../docs/testing-guide.md)
+- [完全な貢献ガイド](https://github.com/sata04/AAT/blob/main/CONTRIBUTING.md)
+- [開発者ガイド](https://github.com/sata04/AAT/blob/main/docs/developer-guide.md)
+- [テストガイド](https://github.com/sata04/AAT/blob/main/docs/testing-guide.md)
 
 ---
 

@@ -3,7 +3,7 @@
 このページでは、macOS用のアプリバンドル（`.app`）とDMGファイルの作成方法を説明します。
 
 > [!NOTE]
-> 詳細情報は [docs/deployment-guide.md](../docs/deployment-guide.md) をご覧ください。
+> 詳細情報は [docs/deployment-guide.md](https://github.com/sata04/AAT/blob/main/docs/deployment-guide.md) をご覧ください。
 
 ---
 
@@ -207,7 +207,7 @@ file resources/packaging/icons/app_icon.png
 
 ## 🚀 次のステップ
 
-- **[Deployment Guide](../docs/deployment-guide.md)** - 詳細なデプロイ手順
+- **[Deployment Guide](https://github.com/sata04/AAT/blob/main/docs/deployment-guide.md)** - 詳細なデプロイ手順
 - **[[開発者ガイド-Developer-Guide]]** - 開発環境の設定
 - **[[トラブルシューティング-Troubleshooting]]** - 問題解決
 
