@@ -282,5 +282,3 @@ class GQualityWorker(QThread):
 - **[[データ解析パイプライン-Data-Analysis-Pipeline]]** - 統計計算の詳細
 - **[[使用例-Examples]]** - G-quality評価の具体例
 - **[[APIリファレンス-API-Reference]]** - `GQualityWorker`と`calculate_statistics`のAPI
-
-[[Home]] に戻る

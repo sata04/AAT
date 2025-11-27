@@ -262,5 +262,3 @@ xcode-select --install
 1. **[[使い方-Usage]]** - 基本的な使い方を学ぶ
 2. **[[GUI操作ガイド-GUI-Guide]]** - UIの詳細を確認
 3. **[[使用例-Examples]]** - 実際の使用例を見る
-
-[[Home]] に戻る

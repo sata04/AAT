@@ -317,5 +317,3 @@ QThreadを使用してUIの応答性を維持しながらデータ処理を実�
 - **[[G-quality評価-G-quality-Evaluation]]** - G-quality評価の詳細
 - **[[APIリファレンス-API-Reference]]** - データ処理関数のAPI仕様
 - **[[設定-Configuration]]** - 設定パラメータの詳細
-
-[[Home]] に戻る

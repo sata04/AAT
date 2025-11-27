@@ -341,5 +341,3 @@ ax.plot(time, gravity_inner, color='blue', label='Inner Capsule')
 - **[[使い方-Usage]]** - 範囲選択機能の使用方法
 - **[[設定-Configuration]]** - グラフエクスポート設定の詳細
 - **[[開発者ガイド-Developer-Guide]]** - グラフ機能のカスタマイズ
-
-[[Home]] に戻る
