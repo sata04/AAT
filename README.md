@@ -224,6 +224,11 @@ python --version  # 3.10以上が必要
 - **[デプロイメントガイド](docs/deployment-guide.md)** - パッケージングと配布方法
 - **[変更履歴](CHANGELOG.md)** - 詳細なバージョン履歴
 - **[貢献ガイド](CONTRIBUTING.md)** - プロジェクトへの貢献方法
+- **[Wiki](https://github.com/sata04/AAT/wiki)** - プロジェクトの詳細なWikiドキュメント
+
+### Wiki 自動更新
+
+このプロジェクトでは、`wiki/` ディレクトリ内のマークダウンファイルが GitHub Wiki に自動的に同期されます。`main` ブランチへ `wiki/` ディレクトリの変更をプッシュすると、GitHub Actions が自動的に Wiki リポジトリを更新します。手動でのトリガーも可能です。
 
 <details>
 <summary><strong>🏗️ アーキテクチャ</strong></summary>

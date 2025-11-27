@@ -1,0 +1,57 @@
+name: Wiki Sync
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'wiki/**'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  sync-wiki:
+    runs-on: ubuntu-latest
+    name: Sync Wiki
+    steps:
+      - name: Checkout main repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Configure Git
+        run: |
+          git config --global user.name "github-actions[bot]"
+          git config --global user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Clone Wiki repository
+        run: |
+          git clone https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.wiki.git wiki-repo
+
+      - name: Sync Wiki files
+        run: |
+          # Remove all existing files in wiki-repo except .git
+          find wiki-repo -mindepth 1 -maxdepth 1 ! -name '.git' -exec rm -rf {} +
+
+          # Copy all files from wiki/ to wiki-repo/
+          cp -r wiki/* wiki-repo/
+
+          # Navigate to wiki repository
+          cd wiki-repo
+
+          # Check if there are changes
+          if [[ -n $(git status -s) ]]; then
+            echo "Changes detected, committing and pushing..."
+            git add .
+            git commit -m "Auto-sync from main repository (commit: ${{ github.sha }})"
+            git push origin master
+            echo "✅ Wiki successfully synced"
+          else
+            echo "ℹ️ No changes to sync"
+          fi
+
+      - name: Cleanup
+        if: always()
+        run: |
+          rm -rf wiki-repo
