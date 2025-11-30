@@ -7,14 +7,14 @@ authors = [
 ]
 requires-python = ">=3.10"
 dependencies = [
-    "PySide6",
+    "PySide6-Essentials",
     "matplotlib",
     "numpy",
     "pandas",
     "pandas-stubs",
     "openpyxl",
     "tables",
-    "types-openpyxl>=3.1.5.20250919",
+    "types-openpyxl",
 ]
 
 [tool.setuptools.packages.find]
@@ -23,16 +23,16 @@ exclude = ["tests*", "config*"]
 
 [project.optional-dependencies]
 dev = [
-    "ruff==0.12.3",
-    "pytest>=7.0.0",
-    "pytest-cov>=4.0.0",
-    "pytest-qt>=4.0.0",
-    "pytest-mock>=3.10.0",
-    "pre-commit>=4.0.0",
+    "ruff",
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+    "pytest-mock",
+    "pre-commit",
 ]
 build = [
-    "pyinstaller>=6.10",
-    "pillow>=10.3",
+    "pyinstaller",
+    "pillow",
 ]
 
 [tool.ruff]
@@ -103,12 +103,16 @@ docstring-code-line-length = "dynamic"
 
 [dependency-groups]
 dev = [
-    "ruff==0.12.3",
-    "pre-commit>=4.0.0",
+    "ruff",
+    "pytest",
+    "pytest-cov",
+    "pytest-qt",
+    "pytest-mock",
+    "pre-commit",
 ]
 build = [
-    "pyinstaller>=6.10",
-    "pillow>=10.3",
+    "pyinstaller",
+    "pillow",
 ]
 
 [tool.ruff.lint.isort]
