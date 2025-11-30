@@ -44,5 +44,7 @@
         "**/results_AAT/cache": true,
         "**/*.pyc": true,
         "**/.ruff_cache": true
-    }
+    },
+    "python-envs.defaultEnvManager": "ms-python.python:system",
+    "python-envs.pythonProjects": []
 }

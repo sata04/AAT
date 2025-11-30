@@ -16,6 +16,17 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - すべてのドキュメント（開発者ガイド、デプロイメントガイド、テストガイド）のコード例を更新
   - `pytest` の `qt_api` 設定を `pyside6` に更新
 
+## [10.0.1] - 2025-11-30
+
+### Fixed
+- **PySide6-Essentials + shiboken6 環境でのmatplotlib互換性修正**:
+  - `PySide6-Essentials`には`PySide6.__version__`が含まれないため、matplotlibやpytest-qtがバージョン情報を参照する際にエラーが発生する問題を修正
+  - `shiboken6.__version__`を使用して互換性を確保
+  - `main.py`と`tests/conftest.py`に互換性修正コードを追加
+
+### Changed
+- `pyproject.toml`の依存関係に`shiboken6`を明示的に追加
+
 ## [10.0.0] - 2025-11-22
 
 ### Added

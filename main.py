@@ -57,6 +57,20 @@ if sys.platform == "darwin":
         # プログラム終了時にstderrを復元
         atexit.register(lambda: setattr(sys, "stderr", original_stderr))
 
+# PySide6-Essentials + shiboken6 環境でのmatplotlib互換性修正
+# matplotlibはPySide6.__version__を参照するが、PySide6-Essentialsには含まれない
+# shiboken6.__version__を使用して互換性を確保
+try:
+    import PySide6
+
+    if not hasattr(PySide6, "__version__"):
+        import shiboken6
+
+        PySide6.__version__ = shiboken6.__version__
+        PySide6.__version_info__ = shiboken6.__version_info__
+except ImportError:
+    pass
+
 from PySide6.QtWidgets import QApplication, QMessageBox
 
 from core.config import get_user_config_dir

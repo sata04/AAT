@@ -1,6 +1,6 @@
 [project]
 name = "AAT"
-version = "10.0.0"
+version = "10.0.1"
 description = "Acceleration Analysis Tool for microgravity experiments"
 authors = [
     {name = "AAT Development Team"}
@@ -8,6 +8,7 @@ authors = [
 requires-python = ">=3.10"
 dependencies = [
     "PySide6-Essentials",
+    "shiboken6",
     "matplotlib",
     "numpy",
     "pandas",

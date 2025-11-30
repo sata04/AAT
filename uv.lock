@@ -9,7 +9,7 @@ resolution-markers = [
 
 [[package]]
 name = "aat"
-version = "10.0.0"
+version = "10.0.1"
 source = { virtual = "." }
 dependencies = [
     { name = "matplotlib" },
@@ -19,6 +19,7 @@ dependencies = [
     { name = "pandas" },
     { name = "pandas-stubs" },
     { name = "pyside6-essentials" },
+    { name = "shiboken6" },
     { name = "tables", version = "3.10.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "tables", version = "3.10.2", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
     { name = "types-openpyxl" },
@@ -68,6 +69,7 @@ requires-dist = [
     { name = "pytest-mock", marker = "extra == 'dev'" },
     { name = "pytest-qt", marker = "extra == 'dev'" },
     { name = "ruff", marker = "extra == 'dev'" },
+    { name = "shiboken6" },
     { name = "tables" },
     { name = "types-openpyxl" },
 ]

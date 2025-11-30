@@ -6,6 +6,16 @@ import shutil
 import tempfile
 from pathlib import Path
 
+# PySide6-Essentials + shiboken6 環境でのpytest-qt互換性修正
+# pytest-qtはPySide6.__version__を参照するが、PySide6-Essentialsには含まれない
+import PySide6
+
+if not hasattr(PySide6, "__version__"):
+    import shiboken6
+
+    PySide6.__version__ = shiboken6.__version__
+    PySide6.__version_info__ = shiboken6.__version_info__
+
 import numpy as np
 import pandas as pd
 import pytest
