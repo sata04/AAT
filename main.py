@@ -71,7 +71,9 @@ try:
 except ImportError:
     pass
 
-from PySide6.QtWidgets import QApplication, QMessageBox
+from PySide6.QtCore import Qt
+from PySide6.QtGui import QColor, QFont, QPainter
+from PySide6.QtWidgets import QApplication, QMessageBox, QSplashScreen
 
 from core.config import get_user_config_dir
 from core.logger import get_logger, log_exception
@@ -145,11 +147,37 @@ def main():
         app.setApplicationVersion(APP_VERSION)
         app.setOrganizationName("AAT Development Team")
 
+        # スプラッシュスクリーンの表示
+        from PySide6.QtGui import QPixmap
+
+        pixmap = QPixmap(400, 200)
+        pixmap.fill(QColor("#111827"))
+        painter = QPainter(pixmap)
+        painter.setPen(QColor("#818CF8"))
+        font = QFont("sans-serif", 24)
+        font.setBold(True)
+        painter.setFont(font)
+        painter.drawText(pixmap.rect(), int(Qt.AlignmentFlag.AlignCenter), "AAT")
+        painter.setPen(QColor("#9CA3AF"))
+        small_font = QFont("sans-serif", 10)
+        painter.setFont(small_font)
+        painter.drawText(
+            pixmap.rect().adjusted(0, 60, 0, 0),
+            int(Qt.AlignmentFlag.AlignHCenter | Qt.AlignmentFlag.AlignTop),
+            f"Acceleration Analysis Tool  v{APP_VERSION}",
+        )
+        painter.end()
+
+        splash = QSplashScreen(pixmap)
+        splash.show()
+        app.processEvents()
+
         from gui.main_window import MainWindow
 
         logger.info("MainWindowを作成します")
         main_window = MainWindow()
         main_window.show()
+        splash.finish(main_window)
 
         logger.info("メインウィンドウ表示完了")
         logger.info("起動準備時間: %.2fs", time.perf_counter() - START_TIME)

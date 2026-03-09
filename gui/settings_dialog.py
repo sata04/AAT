@@ -13,13 +13,17 @@ from PySide6.QtWidgets import (
     QDoubleSpinBox,
     QFormLayout,
     QGroupBox,
+    QHBoxLayout,
     QLineEdit,
+    QMessageBox,
+    QPushButton,
     QScrollArea,
     QSpinBox,
     QVBoxLayout,
     QWidget,
 )
 
+from core.config import load_config
 from core.logger import get_logger
 from gui.widgets import ToggleSwitch
 
@@ -254,6 +258,9 @@ class SettingsDialog(QDialog):
         # G-quality解析パラメータ
         self._init_g_quality_widgets(form_layout4)
 
+        # ツールチップを設定
+        self._apply_tooltips()
+
         # 各グループをコンテンツレイアウトに追加
         layout.addWidget(input_group)
         layout.addWidget(perf_group)
@@ -270,6 +277,36 @@ class SettingsDialog(QDialog):
 
         # ダイアログボタン（スクロールエリアの外に配置）
         self._init_buttons(main_layout)
+
+    def _apply_tooltips(self):
+        """全ウィジェットにツールチップを設定する"""
+        tooltips = {
+            self.time_column: "CSVファイル内の時間データ列名。キーワードで自動検出されます。",
+            self.acceleration_column_inner_capsule: "Inner Capsule（内カプセル）の加速度データ列名。",
+            self.acceleration_column_drag_shield: "Drag Shield（外カプセル）の加速度データ列名。",
+            self.sampling_rate: "CSVデータの1秒あたりのサンプル数。データシートを参照してください。",
+            self.gravity_constant: "基準重力加速度。加速度から重力レベル(G)への変換に使用します。",
+            self.invert_inner_acceleration: "Inner Capsuleの加速度データの符号を反転します。センサーの取付方向に応じて設定してください。",
+            self.use_cache: "処理済みデータをキャッシュに保存し、次回の読み込みを高速化します。",
+            self.auto_calculate_g_quality: "ファイル読み込み時にG-quality解析を自動的に実行します。",
+            self.ylim_min: "グラフのY軸下限値。重力レベルの表示範囲を制限します。",
+            self.ylim_max: "グラフのY軸上限値。重力レベルの表示範囲を制限します。",
+            self.default_graph_duration: "グラフのX軸に表示するデフォルトの時間幅（秒）。",
+            self.graph_sensor_mode: "グラフに表示するセンサーを選択します。",
+            self.export_figure_width: "エクスポートされるグラフ画像の幅（インチ）。",
+            self.export_figure_height: "エクスポートされるグラフ画像の高さ（インチ）。",
+            self.export_dpi: "エクスポートされるグラフ画像の解像度（DPI）。高いほど高品質ですがファイルサイズが大きくなります。",
+            self.export_bbox_inches: "「タイト」を選択すると余白を最小化してエクスポートします。",
+            self.acceleration_threshold: "同期点を検出するための加速度閾値（m/s²）。落下開始時の加速度変化がこの値を超える点を検出します。",
+            self.end_gravity_level: "微小重力区間の終了を判定する重力レベル閾値（G）。",
+            self.window_size: "統計解析に使用するスライディングウィンドウの幅（秒）。",
+            self.min_seconds_after_start: "終了点として認める開始点からの最小経過時間（秒）。短すぎる微小重力区間を除外します。",
+            self.g_quality_start: "G-quality解析で使用する最小ウィンドウサイズ（秒）。小さいほど短時間の微小重力を検出します。",
+            self.g_quality_end: "G-quality解析で使用する最大ウィンドウサイズ（秒）。",
+            self.g_quality_step: "G-quality解析でウィンドウサイズを増加させるステップ幅（秒）。",
+        }
+        for widget, tip in tooltips.items():
+            widget.setToolTip(tip)
 
     def _init_g_quality_widgets(self, form_layout):
         """
@@ -309,11 +346,101 @@ class SettingsDialog(QDialog):
         Args:
             layout (QVBoxLayout): ボタンを追加するメインレイアウト
         """
+        button_container = QHBoxLayout()
+        button_container.setContentsMargins(16, 8, 16, 8)
+
+        # デフォルトに戻すボタン
+        reset_button = QPushButton("デフォルトに戻す")
+        reset_button.setObjectName("Secondary")
+        reset_button.clicked.connect(self._reset_defaults)
+        button_container.addWidget(reset_button)
+
+        button_container.addStretch()
+
         # OKとキャンセルボタン
         button_box = QDialogButtonBox(QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel)
         button_box.accepted.connect(self.accept)
         button_box.rejected.connect(self.reject)
-        layout.addWidget(button_box)
+        button_container.addWidget(button_box)
+
+        layout.addLayout(button_container)
+
+    def _reset_defaults(self):
+        """デフォルト設定値でウィジェットを再設定する"""
+        defaults = load_config()
+
+        self.time_column.setText(defaults.get("time_column", ""))
+        self.acceleration_column_inner_capsule.setText(defaults.get("acceleration_column_inner_capsule", ""))
+        self.acceleration_column_drag_shield.setText(defaults.get("acceleration_column_drag_shield", ""))
+        self.sampling_rate.setValue(defaults.get("sampling_rate", 1000))
+        self.gravity_constant.setValue(defaults.get("gravity_constant", 9.797578))
+        self.invert_inner_acceleration.setChecked(defaults.get("invert_inner_acceleration", False))
+        self.use_cache.setChecked(defaults.get("use_cache", True))
+        self.auto_calculate_g_quality.setChecked(defaults.get("auto_calculate_g_quality", True))
+        self.ylim_min.setValue(defaults.get("ylim_min", -1.0))
+        self.ylim_max.setValue(defaults.get("ylim_max", 1.0))
+        self.default_graph_duration.setValue(defaults.get("default_graph_duration", 1.45))
+        graph_mode = defaults.get("graph_sensor_mode", "both")
+        mode_index = {"both": 0, "inner_only": 1, "drag_only": 2}.get(graph_mode, 0)
+        self.graph_sensor_mode.setCurrentIndex(mode_index)
+        self.export_figure_width.setValue(defaults.get("export_figure_width", 10))
+        self.export_figure_height.setValue(defaults.get("export_figure_height", 6))
+        self.export_dpi.setValue(defaults.get("export_dpi", 300))
+        bbox_value = defaults.get("export_bbox_inches", None)
+        self.export_bbox_inches.setCurrentIndex(1 if bbox_value == "tight" else 0)
+        self.acceleration_threshold.setValue(defaults.get("acceleration_threshold", 5.0))
+        self.end_gravity_level.setValue(defaults.get("end_gravity_level", 8.0))
+        self.window_size.setValue(defaults.get("window_size", 0.1))
+        self.min_seconds_after_start.setValue(defaults.get("min_seconds_after_start", 0.0))
+        self.g_quality_start.setValue(defaults.get("g_quality_start", 0.1))
+        self.g_quality_end.setValue(defaults.get("g_quality_end", 1.0))
+        self.g_quality_step.setValue(defaults.get("g_quality_step", 0.05))
+
+        logger.debug("設定をデフォルト値にリセットしました")
+
+    def accept(self):
+        """設定値をバリデーションしてからダイアログを閉じる"""
+        errors = self._validate()
+        if errors:
+            QMessageBox.warning(self, "入力エラー", "\n".join(errors))
+            return
+        super().accept()
+
+    def _validate(self):
+        """
+        設定値のバリデーションを実行する
+
+        Returns:
+            list[str]: エラーメッセージのリスト（空なら有効）
+        """
+        errors = []
+
+        if self.ylim_min.value() >= self.ylim_max.value():
+            errors.append("グラフY軸最小値は最大値より小さくしてください。")
+
+        if self.g_quality_start.value() >= self.g_quality_end.value():
+            errors.append("G-quality開始ウィンドウサイズは終了サイズより小さくしてください。")
+
+        g_range = self.g_quality_end.value() - self.g_quality_start.value()
+        if self.g_quality_step.value() > g_range:
+            errors.append("G-qualityステップサイズは開始〜終了の範囲以下にしてください。")
+
+        if self.window_size.value() <= 0:
+            errors.append("解析ウィンドウサイズは0より大きくしてください。")
+
+        if self.sampling_rate.value() <= 0:
+            errors.append("サンプリングレートは0より大きくしてください。")
+
+        if not self.time_column.text().strip():
+            errors.append("時間列名を入力してください。")
+
+        if not self.acceleration_column_inner_capsule.text().strip():
+            errors.append("加速度列 (Inner Capsule) 名を入力してください。")
+
+        if not self.acceleration_column_drag_shield.text().strip():
+            errors.append("加速度列 (Drag Shield) 名を入力してください。")
+
+        return errors
 
     def get_settings(self):
         """

@@ -149,6 +149,7 @@ def export_data(
             while (results_dir / f"{base_name}_{counter}.xlsx").exists():
                 counter += 1
             output_file_path = results_dir / f"{base_name}_{counter}.xlsx"
+            notify_info(f"ファイル名を変更して保存します: {output_file_path.name}")
 
     try:
         # 共通の時間軸を作成

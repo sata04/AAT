@@ -22,7 +22,7 @@ from matplotlib import font_manager
 from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.widgets import SpanSelector
-from PySide6.QtCore import QMutex, Qt, QTimer
+from PySide6.QtCore import QEventLoop, QMutex, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -100,6 +100,7 @@ class MainWindow(QMainWindow):
         # ウィンドウの基本設定
         self.setWindowTitle("AAT (Acceleration Analysis Tool)")
         self.resize(1280, 850)
+        self.setMinimumSize(800, 600)
 
         # UI要素の初期化
         self._setup_ui()
@@ -129,6 +130,34 @@ class MainWindow(QMainWindow):
 
     def _notify_info(self, message: str) -> None:
         QMessageBox.information(self, "保存完了", message)
+
+    def _show_error_dialog(self, title, message, detail=None, suggestion=None):
+        """ユーザーフレンドリーなエラーダイアログを表示する"""
+        msg_box = QMessageBox(self)
+        msg_box.setIcon(QMessageBox.Icon.Critical)
+        msg_box.setWindowTitle(title)
+        msg_box.setText(message)
+        if suggestion:
+            msg_box.setInformativeText(suggestion)
+        if detail:
+            msg_box.setDetailedText(detail)
+        msg_box.exec()
+
+    @staticmethod
+    def _friendly_error_message(exc):
+        """例外タイプに応じたユーザーフレンドリーなメッセージを返す"""
+        if isinstance(exc, FileNotFoundError):
+            return "ファイルが見つかりません。パスを確認してください。"
+        if isinstance(exc, PermissionError):
+            return "ファイルへのアクセス権限がありません。"
+        try:
+            import pandas as pd_err
+
+            if isinstance(exc, pd_err.errors.EmptyDataError):
+                return "CSVファイルが空です。"
+        except ImportError:
+            pass
+        return f"予期しないエラーが発生しました: {exc}"
 
     # ------------------------------------------------
     # 初期設定関連メソッド
@@ -256,12 +285,16 @@ class MainWindow(QMainWindow):
         # ファイル操作グループ
         file_group = QHBoxLayout()
         select_button = QPushButton("CSVファイルを選択")
+        select_button.setToolTip("CSVファイルを選択して読み込みます (Ctrl+O)")
+        select_button.setAccessibleName("CSVファイルを選択")
         select_button.clicked.connect(self.select_and_process_file)
         select_button.setCursor(Qt.CursorShape.PointingHandCursor)
         file_group.addWidget(select_button)
 
         self.compare_button = QPushButton("複数ファイルを比較")
         self.compare_button.setObjectName("Secondary")
+        self.compare_button.setToolTip("読み込み済みの複数ファイルを1つのグラフで比較します")
+        self.compare_button.setAccessibleName("複数ファイルを比較")
         self.compare_button.clicked.connect(self.toggle_comparison)
         self.compare_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.compare_button.setEnabled(False)
@@ -282,6 +315,8 @@ class MainWindow(QMainWindow):
         self.g_quality_mode_button = QPushButton("G-quality評価")
         self.g_quality_mode_button.setObjectName("Secondary")
         self.g_quality_mode_button.setCheckable(True)
+        self.g_quality_mode_button.setToolTip("G-quality解析モードに切り替えます")
+        self.g_quality_mode_button.setAccessibleName("G-quality評価モード")
         self.g_quality_mode_button.clicked.connect(self.toggle_g_quality_mode)
         self.g_quality_mode_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.g_quality_mode_button.setEnabled(False)
@@ -290,6 +325,8 @@ class MainWindow(QMainWindow):
         self.show_all_button = QPushButton("全体を表示")
         self.show_all_button.setObjectName("Secondary")
         self.show_all_button.setCheckable(True)
+        self.show_all_button.setToolTip("トリミング前の全データを表示します")
+        self.show_all_button.setAccessibleName("全体を表示")
         self.show_all_button.clicked.connect(self.toggle_show_all_data)
         self.show_all_button.setCursor(Qt.CursorShape.PointingHandCursor)
         self.show_all_button.setEnabled(False)
@@ -312,12 +349,16 @@ class MainWindow(QMainWindow):
 
         settings_button = QPushButton("設定")
         settings_button.setObjectName("Secondary")
+        settings_button.setToolTip("解析パラメータや表示設定を変更します")
+        settings_button.setAccessibleName("設定")
         settings_button.clicked.connect(self.open_settings)
         settings_button.setCursor(Qt.CursorShape.PointingHandCursor)
         tools_group.addWidget(settings_button)
 
         clear_cache_button = QPushButton("キャッシュクリア")
         clear_cache_button.setObjectName("Secondary")
+        clear_cache_button.setToolTip("処理済みデータのキャッシュを削除します")
+        clear_cache_button.setAccessibleName("キャッシュクリア")
         clear_cache_button.clicked.connect(self.clear_cache)
         clear_cache_button.setCursor(Qt.CursorShape.PointingHandCursor)
         tools_group.addWidget(clear_cache_button)
@@ -390,7 +431,14 @@ class MainWindow(QMainWindow):
         self.empty_title = QLabel("まだデータがありません")
         self.empty_title.setObjectName("EmptyStateTitle")
         self.empty_text = QLabel(
-            "CSVファイルを読み込んでグラフと統計を表示してください。\n複数ファイルもまとめて追加できます。"
+            "CSVファイルを読み込んでグラフと統計を表示してください。\n"
+            "複数ファイルもまとめて追加できます。\n\n"
+            "クイックスタート:\n"
+            "  1. CSVファイルを選択して読み込み\n"
+            "  2. グラフで同期点と微小重力区間を確認\n"
+            "  3. G-quality解析を実行\n"
+            "  4. Excelファイルにエクスポート\n\n"
+            "ヒント: Ctrl+O でファイルを開く"
         )
         self.empty_text.setObjectName("Status")
         self.empty_text.setAlignment(Qt.AlignmentFlag.AlignCenter)
@@ -963,6 +1011,7 @@ class MainWindow(QMainWindow):
                 save_to_cache,
             )
 
+            batch_cache_decision = None  # None=毎回確認, True=すべてはい, False=すべていいえ
             for file_idx, file_path in enumerate(file_paths):
                 logger.info(f"ファイル処理開始 ({file_idx + 1}/{total_files}): {file_path}")
                 file_name_without_ext = os.path.splitext(os.path.basename(file_path))[0]
@@ -1048,15 +1097,35 @@ class MainWindow(QMainWindow):
                 if self.config.get("use_cache", True) and not force_reprocess:
                     has_cache, cache_id = has_valid_cache(file_path, self.config)
                     if has_cache:
-                        # キャッシュの再利用について確認
-                        reply = QMessageBox.question(
-                            self,
-                            "キャッシュ検出",
-                            f"このファイル({file_name_without_ext})の処理済みデータが見つかりました。\n再利用しますか？",
-                            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No,
-                        )
+                        # バッチ決定がまだない場合のみ確認
+                        if batch_cache_decision is None:
+                            cache_dialog = QMessageBox(self)
+                            cache_dialog.setWindowTitle("キャッシュ検出")
+                            cache_dialog.setText(
+                                f"このファイル({file_name_without_ext})の処理済みデータが見つかりました。\n再利用しますか？"
+                            )
+                            yes_btn = cache_dialog.addButton("はい", QMessageBox.ButtonRole.YesRole)
+                            cache_dialog.addButton("いいえ", QMessageBox.ButtonRole.NoRole)
+                            yes_all_btn = cache_dialog.addButton("すべてはい", QMessageBox.ButtonRole.YesRole)
+                            no_all_btn = cache_dialog.addButton("すべていいえ", QMessageBox.ButtonRole.NoRole)
+                            cache_dialog.setDefaultButton(yes_btn)
+                            cache_dialog.exec()
+                            clicked = cache_dialog.clickedButton()
 
-                        if reply == QMessageBox.StandardButton.Yes:
+                            if clicked == yes_all_btn:
+                                batch_cache_decision = True
+                                use_cache_for_this = True
+                            elif clicked == no_all_btn:
+                                batch_cache_decision = False
+                                use_cache_for_this = False
+                            elif clicked == yes_btn:
+                                use_cache_for_this = True
+                            else:
+                                use_cache_for_this = False
+                        else:
+                            use_cache_for_this = batch_cache_decision
+
+                        if use_cache_for_this:
                             # キャッシュからデータを読み込む
                             self.processing_status_label.setText(
                                 f"キャッシュからデータを読み込み中... ({file_idx + 1}/{total_files})"
@@ -1115,18 +1184,30 @@ class MainWindow(QMainWindow):
                     time_columns, accel_columns = detect_columns(file_path)
 
                     if not time_columns:
-                        QMessageBox.critical(
-                            self,
+                        try:
+                            all_cols = pd.read_csv(file_path, nrows=0).columns.tolist()
+                            col_list = ", ".join(all_cols[:20])
+                        except Exception:
+                            col_list = "(列名を取得できません)"
+                        self._show_error_dialog(
                             "エラー",
                             "CSVファイルに時間列の候補が見つかりませんでした。",
+                            detail=f"検出された列: {col_list}",
+                            suggestion="設定 > データ入力設定で時間列名を確認してください。",
                         )
                         continue
 
                     if not accel_columns:
-                        QMessageBox.critical(
-                            self,
+                        try:
+                            all_cols = pd.read_csv(file_path, nrows=0).columns.tolist()
+                            col_list = ", ".join(all_cols[:20])
+                        except Exception:
+                            col_list = "(列名を取得できません)"
+                        self._show_error_dialog(
                             "エラー",
                             "CSVファイルに加速度列の候補が見つかりませんでした。",
+                            detail=f"検出された列: {col_list}",
+                            suggestion="設定 > データ入力設定で加速度列名を確認してください。",
                         )
                         continue
 
@@ -1350,14 +1431,18 @@ class MainWindow(QMainWindow):
             # 必要に応じてキャンバスを強制的に更新
             self.canvas.draw_idle()
 
-            # 3秒後にプログレスバーを非表示にする
-            QTimer.singleShot(3000, lambda: self.progress_container.setVisible(False))
+            # 5秒後にプログレスバーを非表示にする
+            QTimer.singleShot(5000, lambda: self.progress_container.setVisible(False))
 
         except Exception as e:
             log_exception(e, "ファイル処理中に例外が発生")
             self.status_label.setText("エラーが発生しました")
             self.processing_status_label.setText(f"エラー: {str(e)}")
-            QMessageBox.critical(self, "エラー", str(e))
+            self._show_error_dialog(
+                "エラー",
+                self._friendly_error_message(e),
+                detail=str(e),
+            )
         finally:
             self._update_data_dependent_controls()
 
@@ -1399,24 +1484,19 @@ class MainWindow(QMainWindow):
             data["filtered_adjusted_time"],
         )
 
-        # 同期的に実行する（非同期実行の複雑さを避けるため）
-        g_quality_data = []
-
-        # 進捗状況更新のためのコールバック
-        def update_file_progress(value):
-            self.file_progress_bar.setValue(value)
-            QApplication.processEvents()
-
-        def update_status(status):
-            self.processing_status_label.setText(status)
-            QApplication.processEvents()
+        # QEventLoopで非同期実行（UIスレッドをブロックせずに完了を待つ）
+        self._current_g_quality_worker = worker
 
         # シグナルを接続
-        worker.progress.connect(update_file_progress)
-        worker.status_update.connect(update_status)
+        worker.progress.connect(self.file_progress_bar.setValue)
+        worker.status_update.connect(self.processing_status_label.setText)
 
-        # ワーカーを実行
-        worker.run()
+        loop = QEventLoop()
+        worker.finished.connect(loop.quit)
+        worker.start()
+        loop.exec()
+
+        self._current_g_quality_worker = None
         g_quality_data = worker.get_results()
 
         # 結果を保存
@@ -1558,17 +1638,29 @@ class MainWindow(QMainWindow):
         """
         self.table.setRowCount(len(self.processed_data))
         self.table.setColumnCount(7)
-        self.table.setHorizontalHeaderLabels(
-            [
-                "File Name",
-                "Inner Capsule: Start Time of Min SD Window for Given Window Size (s)",
-                "Inner Capsule: Mean G-Level in Min SD Window (G)",
-                "Inner Capsule: SD in Min SD Window (G)",
-                "Drag Shield: Start Time of Min SD Window for Given Window Size (s)",
-                "Drag Shield: Mean G-Level in Min SD Window (G)",
-                "Drag Shield: SD in Min SD Window (G)",
-            ]
-        )
+        short_headers = [
+            "ファイル名",
+            "IC: 最小SD開始 (s)",
+            "IC: 平均G (G)",
+            "IC: SD (G)",
+            "DS: 最小SD開始 (s)",
+            "DS: 平均G (G)",
+            "DS: SD (G)",
+        ]
+        full_headers = [
+            "File Name",
+            "Inner Capsule: Start Time of Min SD Window for Given Window Size (s)",
+            "Inner Capsule: Mean G-Level in Min SD Window (G)",
+            "Inner Capsule: SD in Min SD Window (G)",
+            "Drag Shield: Start Time of Min SD Window for Given Window Size (s)",
+            "Drag Shield: Mean G-Level in Min SD Window (G)",
+            "Drag Shield: SD in Min SD Window (G)",
+        ]
+        self.table.setHorizontalHeaderLabels(short_headers)
+        for col, tooltip in enumerate(full_headers):
+            item = self.table.horizontalHeaderItem(col)
+            if item:
+                item.setToolTip(tooltip)
 
         for row, (file_name, data) in enumerate(self.processed_data.items()):
             # 各ファイルの統計情報を計算
@@ -1630,18 +1722,31 @@ class MainWindow(QMainWindow):
 
         self.table.setRowCount(len(all_g_quality_data))
         self.table.setColumnCount(8)
-        self.table.setHorizontalHeaderLabels(
-            [
-                "Dataset",
-                "Analysis Window Size (s)",
-                "Inner Capsule: Start Time of Min SD Window for Given Window Size (s)",
-                "Inner Capsule: Mean G-Level in Min SD Window (G)",
-                "Inner Capsule: SD in Min SD Window (G)",
-                "Drag Shield: Start Time of Min SD Window for Given Window Size (s)",
-                "Drag Shield: Mean G-Level in Min SD Window (G)",
-                "Drag Shield: SD in Min SD Window (G)",
-            ]
-        )
+        gq_short_headers = [
+            "データセット",
+            "ウィンドウ (s)",
+            "IC: 最小SD開始 (s)",
+            "IC: 平均G (G)",
+            "IC: SD (G)",
+            "DS: 最小SD開始 (s)",
+            "DS: 平均G (G)",
+            "DS: SD (G)",
+        ]
+        gq_full_headers = [
+            "Dataset",
+            "Analysis Window Size (s)",
+            "Inner Capsule: Start Time of Min SD Window for Given Window Size (s)",
+            "Inner Capsule: Mean G-Level in Min SD Window (G)",
+            "Inner Capsule: SD in Min SD Window (G)",
+            "Drag Shield: Start Time of Min SD Window for Given Window Size (s)",
+            "Drag Shield: Mean G-Level in Min SD Window (G)",
+            "Drag Shield: SD in Min SD Window (G)",
+        ]
+        self.table.setHorizontalHeaderLabels(gq_short_headers)
+        for col, tooltip in enumerate(gq_full_headers):
+            item = self.table.horizontalHeaderItem(col)
+            if item:
+                item.setToolTip(tooltip)
 
         for row, (
             dataset,
@@ -1786,7 +1891,7 @@ class MainWindow(QMainWindow):
             self.on_select_range,
             "horizontal",
             useblit=True,
-            props={"alpha": 0.3, "facecolor": "tab:blue"},
+            props={"alpha": 0.3, "facecolor": Colors.GRAPH_SPAN},
             interactive=True,
             drag_from_anywhere=True,
         )
@@ -2016,14 +2121,14 @@ class MainWindow(QMainWindow):
             ax.plot(
                 [p[0] for p in inner_points],
                 [p[1] for p in inner_points],
-                color="darkblue",
+                color=Colors.GRAPH_INNER_MEAN,
                 label="Inner Capsule: Mean Gravity Level",
             )
         if drag_points:
             ax.plot(
                 [p[0] for p in drag_points],
                 [p[1] for p in drag_points],
-                color="red",
+                color=Colors.GRAPH_DRAG_MEAN,
                 label="Drag Shield: Mean Gravity Level",
             )
         ax.set_xlabel("Window Size (s)")
@@ -2037,14 +2142,14 @@ class MainWindow(QMainWindow):
             ax2.plot(
                 [p[0] for p in inner_std_points],
                 [p[1] for p in inner_std_points],
-                color="dodgerblue",
+                color=Colors.GRAPH_INNER_STD,
                 label="Inner Capsule: Standard Deviation",
             )
         if drag_std_points:
             ax2.plot(
                 [p[0] for p in drag_std_points],
                 [p[1] for p in drag_std_points],
-                color="violet",
+                color=Colors.GRAPH_DRAG_STD,
                 label="Drag Shield: Standard Deviation",
             )
         ax2.set_ylabel("Standard Deviation (G)")
@@ -2094,14 +2199,14 @@ class MainWindow(QMainWindow):
                 export_ax.plot(
                     [p[0] for p in export_inner_points],
                     [p[1] for p in export_inner_points],
-                    color="darkblue",
+                    color=Colors.GRAPH_INNER_MEAN,
                     label="Inner Capsule: Mean Gravity Level",
                 )
             if export_drag_points:
                 export_ax.plot(
                     [p[0] for p in export_drag_points],
                     [p[1] for p in export_drag_points],
-                    color="red",
+                    color=Colors.GRAPH_DRAG_MEAN,
                     label="Drag Shield: Mean Gravity Level",
                 )
             export_ax.set_xlabel("Window Size (s)")
@@ -2115,14 +2220,14 @@ class MainWindow(QMainWindow):
                 export_ax2.plot(
                     [p[0] for p in export_inner_std_points],
                     [p[1] for p in export_inner_std_points],
-                    color="dodgerblue",
+                    color=Colors.GRAPH_INNER_STD,
                     label="Inner Capsule: Standard Deviation",
                 )
             if export_drag_std_points:
                 export_ax2.plot(
                     [p[0] for p in export_drag_std_points],
                     [p[1] for p in export_drag_std_points],
-                    color="violet",
+                    color=Colors.GRAPH_DRAG_STD,
                     label="Drag Shield: Standard Deviation",
                 )
             export_ax2.set_ylabel("Standard Deviation (G)")
