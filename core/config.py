@@ -214,8 +214,14 @@ def save_config(config: dict[str, Any], on_error: Callable[[str], None] | None =
 
         # 浮動小数点精度問題を修正するため、JSON文字列を処理
         config_str = json.dumps(config, indent=4, ensure_ascii=False)
-        # 浮動小数点の精度問題を修正
-        config_str = config_str.replace("0.6800000000000002", "0.68")
+        # IEEE 754 浮動小数点精度問題を汎用的に修正（10桁以上の小数を丸める）
+        import re
+
+        config_str = re.sub(
+            r"(\d+\.\d{10,})",
+            lambda m: f"{float(m.group(1)):.10g}",
+            config_str,
+        )
 
         with config_path.open("w", encoding="utf-8") as f:
             f.write(config_str)

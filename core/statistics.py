@@ -38,7 +38,7 @@ def calculate_statistics(
     """
     window_size: float = float(config.get("window_size", 0.1))
     sampling_rate: int = int(config.get("sampling_rate", 1000))
-    window_size_samples: int = int(window_size * sampling_rate)
+    window_size_samples: int = max(1, round(window_size * sampling_rate))
 
     std_devs: list[float] | np.ndarray = []
     means: list[float] | np.ndarray = []

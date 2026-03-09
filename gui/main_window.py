@@ -1799,16 +1799,16 @@ class MainWindow(QMainWindow):
             logger.warning("original_file_pathが空です。グラフを保存できません。")
             return None
 
-        try:
-            # エクスポート用の設定を取得
-            export_width = config.get("export_figure_width", 10)
-            export_height = config.get("export_figure_height", 6)
-            export_dpi = config.get("export_dpi", 300)
-            export_bbox = config.get("export_bbox_inches", None)
-            bbox_inches = "tight" if export_bbox == "tight" else None
+        # エクスポート用の設定を取得
+        export_width = config.get("export_figure_width", 10)
+        export_height = config.get("export_figure_height", 6)
+        export_dpi = config.get("export_dpi", 300)
+        export_bbox = config.get("export_bbox_inches", None)
+        bbox_inches = "tight" if export_bbox == "tight" else None
 
-            # エクスポート用のfigureを作成
-            export_fig = plt.figure(figsize=(export_width, export_height))
+        # エクスポート用のfigureを作成
+        export_fig = plt.figure(figsize=(export_width, export_height))
+        try:
             export_ax = export_fig.add_subplot(111)
 
             # グラフを再描画（エクスポート用）
@@ -1853,14 +1853,13 @@ class MainWindow(QMainWindow):
                 f"グラフを保存しました: {graph_path} (サイズ: {export_width}x{export_height}, DPI: {export_dpi})"
             )
 
-            # エクスポート用figureをクローズ
-            plt.close(export_fig)
-
             return graph_path
 
         except Exception as e:
             logger.error(f"グラフの保存中にエラーが発生しました: {e}")
             return None
+        finally:
+            plt.close(export_fig)
 
     def plot_comparison(self):
         """
@@ -2084,78 +2083,78 @@ class MainWindow(QMainWindow):
 
         # エクスポート用のfigureを作成
         export_fig = plt.figure(figsize=(export_width, export_height))
-        export_ax = export_fig.add_subplot(111)
+        try:
+            export_ax = export_fig.add_subplot(111)
 
-        # グラフを再描画（エクスポート用）
-        export_inner_points = [(row[0], row[2]) for row in g_quality_data if row[2] is not None]
-        export_drag_points = [(row[0], row[5]) for row in g_quality_data if row[5] is not None]
+            # グラフを再描画（エクスポート用）
+            export_inner_points = [(row[0], row[2]) for row in g_quality_data if row[2] is not None]
+            export_drag_points = [(row[0], row[5]) for row in g_quality_data if row[5] is not None]
 
-        if export_inner_points:
-            export_ax.plot(
-                [p[0] for p in export_inner_points],
-                [p[1] for p in export_inner_points],
-                color="darkblue",
-                label="Inner Capsule: Mean Gravity Level",
+            if export_inner_points:
+                export_ax.plot(
+                    [p[0] for p in export_inner_points],
+                    [p[1] for p in export_inner_points],
+                    color="darkblue",
+                    label="Inner Capsule: Mean Gravity Level",
+                )
+            if export_drag_points:
+                export_ax.plot(
+                    [p[0] for p in export_drag_points],
+                    [p[1] for p in export_drag_points],
+                    color="red",
+                    label="Drag Shield: Mean Gravity Level",
+                )
+            export_ax.set_xlabel("Window Size (s)")
+            export_ax.set_ylabel("Mean Gravity Level (G)")
+
+            export_ax2 = export_ax.twinx()
+            export_inner_std_points = [(row[0], row[3]) for row in g_quality_data if row[3] is not None]
+            export_drag_std_points = [(row[0], row[6]) for row in g_quality_data if row[6] is not None]
+
+            if export_inner_std_points:
+                export_ax2.plot(
+                    [p[0] for p in export_inner_std_points],
+                    [p[1] for p in export_inner_std_points],
+                    color="dodgerblue",
+                    label="Inner Capsule: Standard Deviation",
+                )
+            if export_drag_std_points:
+                export_ax2.plot(
+                    [p[0] for p in export_drag_std_points],
+                    [p[1] for p in export_drag_std_points],
+                    color="violet",
+                    label="Drag Shield: Standard Deviation",
+                )
+            export_ax2.set_ylabel("Standard Deviation (G)")
+
+            export_ax.set_title(f"G-quality Analysis - {file_name}")
+            export_ax.grid(True)
+            export_ax.legend(loc="upper left")
+            export_ax2.legend(loc="upper right")
+
+            # グラフの右下にバージョンを表示
+            self._add_version_watermark(export_ax)
+
+            export_fig.tight_layout()
+
+            # 出力ディレクトリ構造を作成（export.pyと同じロジック）
+
+            csv_dir = os.path.dirname(original_file_path)
+            logger.debug(f"G-quality: CSV directory: {csv_dir}")
+            logger.debug(f"G-quality: Original file path: {original_file_path}")
+            results_dir, graphs_dir = create_output_directories(csv_dir)
+            logger.debug(f"G-quality: Results directory: {results_dir}")
+            logger.debug(f"G-quality: Graphs directory: {graphs_dir}")
+            graph_path = os.path.join(graphs_dir, f"{file_name}_gq.png")
+            export_fig.savefig(graph_path, dpi=export_dpi, bbox_inches=bbox_inches)
+            logger.info(
+                f"G-qualityグラフを保存しました: {graph_path} (サイズ: {export_width}x{export_height}, DPI: {export_dpi})"
             )
-        if export_drag_points:
-            export_ax.plot(
-                [p[0] for p in export_drag_points],
-                [p[1] for p in export_drag_points],
-                color="red",
-                label="Drag Shield: Mean Gravity Level",
-            )
-        export_ax.set_xlabel("Window Size (s)")
-        export_ax.set_ylabel("Mean Gravity Level (G)")
 
-        export_ax2 = export_ax.twinx()
-        export_inner_std_points = [(row[0], row[3]) for row in g_quality_data if row[3] is not None]
-        export_drag_std_points = [(row[0], row[6]) for row in g_quality_data if row[6] is not None]
-
-        if export_inner_std_points:
-            export_ax2.plot(
-                [p[0] for p in export_inner_std_points],
-                [p[1] for p in export_inner_std_points],
-                color="dodgerblue",
-                label="Inner Capsule: Standard Deviation",
-            )
-        if export_drag_std_points:
-            export_ax2.plot(
-                [p[0] for p in export_drag_std_points],
-                [p[1] for p in export_drag_std_points],
-                color="violet",
-                label="Drag Shield: Standard Deviation",
-            )
-        export_ax2.set_ylabel("Standard Deviation (G)")
-
-        export_ax.set_title(f"G-quality Analysis - {file_name}")
-        export_ax.grid(True)
-        export_ax.legend(loc="upper left")
-        export_ax2.legend(loc="upper right")
-
-        # グラフの右下にバージョンを表示
-        self._add_version_watermark(export_ax)
-
-        export_fig.tight_layout()
-
-        # 出力ディレクトリ構造を作成（export.pyと同じロジック）
-
-        csv_dir = os.path.dirname(original_file_path)
-        logger.debug(f"G-quality: CSV directory: {csv_dir}")
-        logger.debug(f"G-quality: Original file path: {original_file_path}")
-        results_dir, graphs_dir = create_output_directories(csv_dir)
-        logger.debug(f"G-quality: Results directory: {results_dir}")
-        logger.debug(f"G-quality: Graphs directory: {graphs_dir}")
-        graph_path = os.path.join(graphs_dir, f"{file_name}_gq.png")
-        export_fig.savefig(graph_path, dpi=export_dpi, bbox_inches=bbox_inches)
-        logger.info(
-            f"G-qualityグラフを保存しました: {graph_path} (サイズ: {export_width}x{export_height}, DPI: {export_dpi})"
-        )
-
-        # エクスポート用figureをクローズ
-        plt.close(export_fig)
-
-        self.canvas.draw()
-        return graph_path
+            self.canvas.draw()
+            return graph_path
+        finally:
+            plt.close(export_fig)
 
     def show_all_data(self, data):
         """
