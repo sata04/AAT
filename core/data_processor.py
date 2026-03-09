@@ -49,15 +49,21 @@ def detect_columns(file_path: str) -> tuple[list[str], list[str]]:
         acceleration_columns: list[str] = []
 
         # カラム名に基づいて候補を検出
+        # 短いキーワード ("s", "t", "a", "g") は部分一致だと "status", "test" 等にもマッチするため完全一致に限定
+        time_keywords_partial = ["time", "時間", "秒", "sec"]
+        time_keywords_exact = {"s", "t"}
+        accel_keywords_partial = ["acc", "加速度", "accel", "acceleration"]
+        accel_keywords_exact = {"a", "g"}
+
         for column in data.columns:
-            col_lower = column.lower()
+            col_lower = column.lower().strip()
 
             # 時間列の候補を検出
-            if any(keyword in col_lower for keyword in ["time", "時間", "秒", "s", "sec", "t"]):
+            if any(keyword in col_lower for keyword in time_keywords_partial) or col_lower in time_keywords_exact:
                 time_columns.append(column)
 
             # 加速度列の候補を検出
-            if any(keyword in col_lower for keyword in ["acc", "加速度", "a", "accel", "acceleration", "g"]):
+            if any(keyword in col_lower for keyword in accel_keywords_partial) or col_lower in accel_keywords_exact:
                 acceleration_columns.append(column)
 
         # 名前ベースの検出で候補がない場合は、数値データ型のカラムを候補に追加

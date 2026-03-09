@@ -175,6 +175,8 @@ def export_data(
 
         # 時間間隔を計算（サンプリングレートに基づく）
         sampling_rate = config.get("sampling_rate", 1000)  # 設定からサンプリングレートを取得、デフォルトは1000Hz
+        if not sampling_rate or sampling_rate <= 0:
+            raise ValueError("サンプリングレートは正の数でなければなりません。")
         time_step = 1.0 / sampling_rate
 
         # 共通の時間軸を生成
@@ -378,7 +380,6 @@ def export_g_quality_data(g_quality_data, original_file_path, g_quality_graph_pa
         new_graph_path = graphs_dir / f"{base_name}_gq.png"
 
         # 同じファイルでない場合のみコピーを実行
-        import shutil
 
         try:
             # パスを正規化して比較

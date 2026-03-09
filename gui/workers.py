@@ -252,4 +252,5 @@ class GQualityWorker(QThread):
             self.g_quality_data = []
             self.finished.emit([])  # 空リストを返す
 
-        self.status_update.emit("処理をキャンセルしました")
+        if not self.is_running:
+            self.status_update.emit("処理をキャンセルしました")
