@@ -48,9 +48,14 @@ class Colors:
     DARK_ERROR = "#F87171"  # Red 400
     DARK_TEXT_PRIMARY = "#F9FAFB"  # Gray 50
     DARK_TEXT_SECONDARY = "#9CA3AF"  # Gray 400
-    DARK_TEXT_DISABLED = "#6B7280"  # Gray 500
+    DARK_TEXT_DISABLED = "#8B95A5"  # Improved contrast (~5.5:1 on DARK_BG_PRIMARY)
     DARK_BORDER = "#4B5563"  # Gray 600
     DARK_BORDER_FOCUS = "#818CF8"  # Indigo 400
+    DARK_GRAPH_INNER_MEAN = "#60A5FA"  # Blue 400
+    DARK_GRAPH_DRAG_MEAN = "#F87171"  # Red 400
+    DARK_GRAPH_INNER_STD = "#93C5FD"  # Blue 300
+    DARK_GRAPH_DRAG_STD = "#C4B5FD"  # Violet 300
+    DARK_GRAPH_SPAN = "#818CF8"  # Indigo 400
 
     # Light Theme Colors
     LIGHT_BG_PRIMARY = "#F8F9FA"
@@ -62,9 +67,14 @@ class Colors:
     LIGHT_ERROR = "#B00020"
     LIGHT_TEXT_PRIMARY = "#111827"
     LIGHT_TEXT_SECONDARY = "#4B5563"
-    LIGHT_TEXT_DISABLED = "#9E9E9E"
+    LIGHT_TEXT_DISABLED = "#757575"  # Improved contrast (~4.6:1 on LIGHT_BG_PRIMARY)
     LIGHT_BORDER = "#E5E7EB"
     LIGHT_BORDER_FOCUS = "#4F46E5"
+    LIGHT_GRAPH_INNER_MEAN = "#1E40AF"  # Blue 800
+    LIGHT_GRAPH_DRAG_MEAN = "#B91C1C"  # Red 700
+    LIGHT_GRAPH_INNER_STD = "#3B82F6"  # Blue 500
+    LIGHT_GRAPH_DRAG_STD = "#7C3AED"  # Violet 600
+    LIGHT_GRAPH_SPAN = "#4F46E5"  # Indigo 600
 
     # Current Theme Colors (Defaults to Dark)
     BG_PRIMARY = DARK_BG_PRIMARY
@@ -79,6 +89,11 @@ class Colors:
     TEXT_DISABLED = DARK_TEXT_DISABLED
     BORDER = DARK_BORDER
     BORDER_FOCUS = DARK_BORDER_FOCUS
+    GRAPH_INNER_MEAN = DARK_GRAPH_INNER_MEAN
+    GRAPH_DRAG_MEAN = DARK_GRAPH_DRAG_MEAN
+    GRAPH_INNER_STD = DARK_GRAPH_INNER_STD
+    GRAPH_DRAG_STD = DARK_GRAPH_DRAG_STD
+    GRAPH_SPAN = DARK_GRAPH_SPAN
 
     @classmethod
     def set_theme(cls, theme_type: ThemeType):
@@ -105,6 +120,11 @@ class Colors:
             cls.TEXT_DISABLED = cls.LIGHT_TEXT_DISABLED
             cls.BORDER = cls.LIGHT_BORDER
             cls.BORDER_FOCUS = cls.LIGHT_BORDER_FOCUS
+            cls.GRAPH_INNER_MEAN = cls.LIGHT_GRAPH_INNER_MEAN
+            cls.GRAPH_DRAG_MEAN = cls.LIGHT_GRAPH_DRAG_MEAN
+            cls.GRAPH_INNER_STD = cls.LIGHT_GRAPH_INNER_STD
+            cls.GRAPH_DRAG_STD = cls.LIGHT_GRAPH_DRAG_STD
+            cls.GRAPH_SPAN = cls.LIGHT_GRAPH_SPAN
         else:
             # Default to Dark for DARK or fallback
             cls.BG_PRIMARY = cls.DARK_BG_PRIMARY
@@ -119,6 +139,11 @@ class Colors:
             cls.TEXT_DISABLED = cls.DARK_TEXT_DISABLED
             cls.BORDER = cls.DARK_BORDER
             cls.BORDER_FOCUS = cls.DARK_BORDER_FOCUS
+            cls.GRAPH_INNER_MEAN = cls.DARK_GRAPH_INNER_MEAN
+            cls.GRAPH_DRAG_MEAN = cls.DARK_GRAPH_DRAG_MEAN
+            cls.GRAPH_INNER_STD = cls.DARK_GRAPH_INNER_STD
+            cls.GRAPH_DRAG_STD = cls.DARK_GRAPH_DRAG_STD
+            cls.GRAPH_SPAN = cls.DARK_GRAPH_SPAN
 
 
 # --- Typography ---

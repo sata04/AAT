@@ -27,6 +27,7 @@ class ToggleSwitch(QCheckBox):
 
         # Configure widget
         self.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.setFocusPolicy(Qt.FocusPolicy.TabFocus)
 
         # Animation setup
         self._position = 0.0
@@ -105,6 +106,17 @@ class ToggleSwitch(QCheckBox):
         painter.drawEllipse(
             QRectF(current_x - thumb_radius, thumb_center_y - thumb_radius, thumb_radius * 2, thumb_radius * 2)
         )
+
+        # Draw focus ring
+        if self.hasFocus():
+            from PySide6.QtCore import Qt as QtConst
+            from PySide6.QtGui import QPen
+
+            focus_pen = QPen(QColor(Colors.BORDER_FOCUS), 2, QtConst.PenStyle.SolidLine)
+            painter.setPen(focus_pen)
+            painter.setBrush(QColor(0, 0, 0, 0))
+            focus_rect = QRectF(track_rect.x() - 2, track_rect.y() - 2, track_rect.width() + 4, track_rect.height() + 4)
+            painter.drawRoundedRect(focus_rect, radius + 2, radius + 2)
 
         # Draw text if provided
         if self.text():
