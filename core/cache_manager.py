@@ -7,6 +7,7 @@
 再利用できるようにします。
 """
 
+import copy
 import hashlib
 import json
 import os
@@ -22,6 +23,48 @@ from core.version import APP_VERSION
 
 # ロガーの初期化
 logger = get_logger("cache_manager")
+
+
+class _RestrictedUnpickler(pickle.Unpickler):
+    """pickle.load の安全なラッパー。許可されたモジュールのみロードを許可する。"""
+
+    _ALLOWED_MODULES = frozenset(
+        {
+            "builtins",
+            "collections",
+            "datetime",
+            "numpy",
+            "numpy.core.multiarray",
+            "numpy.core.numeric",
+            "numpy.dtypes",
+            "numpy._core.multiarray",
+            "numpy._core.numeric",
+            "pandas",
+            "pandas.core.frame",
+            "pandas.core.indexes.base",
+            "pandas.core.indexes.range",
+            "pandas.core.internals.blocks",
+            "pandas.core.internals.managers",
+            "pandas.core.series",
+            "pandas._libs.internals",
+            "pandas._libs.lib",
+            "pandas._libs.tslibs.timestamps",
+            "pandas.compat.pickle_compat",
+            "pandas.core.arrays.numpy_",
+        }
+    )
+
+    def find_class(self, module: str, name: str):
+        if module in self._ALLOWED_MODULES:
+            return super().find_class(module, name)
+        raise pickle.UnpicklingError(
+            f"セキュリティ: 許可されていないモジュールのロードをブロックしました: {module}.{name}"
+        )
+
+
+def _safe_pickle_load(f):
+    """pickle.load の安全な代替。RestrictedUnpickler を使用する。"""
+    return _RestrictedUnpickler(f).load()
 
 
 def generate_cache_id(file_path, config):
@@ -137,7 +180,7 @@ def save_to_cache(processed_data, file_path, cache_id, config):
         }
 
         # 保存する前に大きなデータをコピー
-        data_to_save = processed_data.copy()
+        data_to_save = copy.deepcopy(processed_data)
 
         # Pandasオブジェクトが安全に保存されているか確認
         if "raw_data" in data_to_save:
@@ -183,7 +226,7 @@ def load_from_cache(file_path, cache_id):
 
         # キャッシュからデータを読み込み
         with open(cache_path, "rb") as f:
-            data = pickle.load(f)
+            data = _safe_pickle_load(f)
 
         # メタデータを確認
         metadata = data.get("_metadata", {})
@@ -291,7 +334,7 @@ def has_valid_cache(file_path, config):
         if os.path.exists(cache_path):
             # キャッシュファイルが存在する場合、その有効性を確認
             with open(cache_path, "rb") as f:
-                data = pickle.load(f)
+                data = _safe_pickle_load(f)
 
             # メタデータを確認
             metadata = data.get("_metadata", {})

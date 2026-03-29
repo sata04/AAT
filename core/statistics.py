@@ -67,15 +67,15 @@ def calculate_statistics(
     # スライディングウィンドウで計算（numpy配列で高速化）
     for i in range(num_windows):
         window = gravity_array[i : i + window_size_samples]
-        std_devs[i] = float(np.std(window))
-        means[i] = float(np.mean(np.abs(window)))  # 絶対値の平均を計算
+        std_devs[i] = float(np.nanstd(window))
+        means[i] = float(np.nanmean(np.abs(window)))  # 絶対値の平均を計算
         times[i] = time_array[i]
 
-    if len(std_devs) == 0:
+    if len(std_devs) == 0 or np.all(np.isnan(std_devs)):
         return None, None, None
 
-    # 最小標準偏差のインデックスを見つける
-    min_std_index: int = int(np.argmin(std_devs))
+    # 最小標準偏差のインデックスを見つける（NaNを無視）
+    min_std_index: int = int(np.nanargmin(std_devs))
     return float(means[min_std_index]), float(times[min_std_index]), float(std_devs[min_std_index])
 
 

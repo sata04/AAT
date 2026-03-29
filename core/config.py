@@ -33,8 +33,8 @@ def _default_user_config_dir() -> Path:
     if sys.platform == "darwin":
         return Path.home() / "Library" / "Application Support" / "AAT"
     if sys.platform == "win32":
-        return Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming")) / "AAT"
-    return Path(os.environ.get("XDG_CONFIG_HOME", Path.home() / ".config")) / "AAT"
+        return Path(os.environ.get("APPDATA") or (Path.home() / "AppData" / "Roaming")) / "AAT"
+    return Path(os.environ.get("XDG_CONFIG_HOME") or (Path.home() / ".config")) / "AAT"
 
 
 def get_user_config_dir() -> Path:
@@ -177,7 +177,21 @@ def load_config(on_warning: Callable[[str], None] | None = None) -> dict[str, An
         logger.info("デフォルト設定を使用します")
     except json.JSONDecodeError as e:
         logger.error(f"ユーザー設定ファイルの解析に失敗しました: {e}")
-        warn(f"ユーザー設定ファイルの解析に失敗しました: {user_config_path}\nデフォルト設定を使用します。")
+        # バックアップからの復元を試みる
+        if backup_path.exists():
+            try:
+                with backup_path.open("r", encoding="utf-8") as bf:
+                    user_config = json.load(bf)
+                logger.info("バックアップから設定を復元しました: %s", backup_path)
+                shutil.copy2(backup_path, user_config_path)
+                for key in default_config:
+                    if key in user_config:
+                        default_config[key] = user_config[key]
+                default_config["app_version"] = APP_VERSION
+            except Exception:
+                warn(f"ユーザー設定ファイルの解析に失敗しました: {user_config_path}\nデフォルト設定を使用します。")
+        else:
+            warn(f"ユーザー設定ファイルの解析に失敗しました: {user_config_path}\nデフォルト設定を使用します。")
 
     logger.debug(f"最終的な設定: {default_config}")
     return default_config
@@ -212,16 +226,17 @@ def save_config(config: dict[str, Any], on_error: Callable[[str], None] | None =
             shutil.copy2(config_path, backup_path)
             logger.debug(f"設定ファイルをバックアップしました: {backup_path}")
 
-        # 浮動小数点精度問題を修正するため、JSON文字列を処理
-        config_str = json.dumps(config, indent=4, ensure_ascii=False)
-        # IEEE 754 浮動小数点精度問題を汎用的に修正（10桁以上の小数を丸める）
-        import re
+        # 浮動小数点精度問題を修正してからシリアライズ
+        def _clean_floats(obj):
+            if isinstance(obj, dict):
+                return {k: _clean_floats(v) for k, v in obj.items()}
+            if isinstance(obj, list):
+                return [_clean_floats(item) for item in obj]
+            if isinstance(obj, float):
+                return round(obj, 10)
+            return obj
 
-        config_str = re.sub(
-            r"(\d+\.\d{10,})",
-            lambda m: f"{float(m.group(1)):.10g}",
-            config_str,
-        )
+        config_str = json.dumps(_clean_floats(config), indent=4, ensure_ascii=False)
 
         with config_path.open("w", encoding="utf-8") as f:
             f.write(config_str)

@@ -18,6 +18,7 @@ import pandas as pd
 from openpyxl import Workbook, load_workbook
 from openpyxl.utils.dataframe import dataframe_to_rows
 
+from core.exceptions import ExportError
 from core.logger import get_logger, log_exception
 from core.paths import ensure_graphs_dir, ensure_results_dir
 
@@ -160,7 +161,7 @@ def export_data(
             time_ranges.append((adjusted_time.min(), adjusted_time.max()))
 
         if not time_ranges:
-            raise ValueError("エクスポート可能な時間データがありません。")
+            raise ExportError("エクスポート可能な時間データがありません。")
 
         start_time = max(range_[0] for range_ in time_ranges)
         end_time = min(range_[1] for range_ in time_ranges)
@@ -339,11 +340,11 @@ def export_data(
     except PermissionError as e:
         error_msg = f"{output_file_path} に書き込みできません。権限を確認してください。"
         logger.error(error_msg)
-        raise ValueError(error_msg) from e
+        raise ExportError(error_msg, file_path=str(output_file_path)) from e
     except Exception as e:
         error_msg = f"データの保存中にエラーが発生しました: {e}"
         log_exception(e, error_msg)
-        raise ValueError(error_msg) from e
+        raise ExportError(error_msg, file_path=str(output_file_path)) from e
 
 
 def export_g_quality_data(g_quality_data, original_file_path, g_quality_graph_path=None):
@@ -426,13 +427,8 @@ def export_g_quality_data(g_quality_data, original_file_path, g_quality_graph_pa
         # G-quality Analysis シートを作成または更新
         sheet_name = "G-quality Analysis"
         if sheet_name in workbook.sheetnames:
-            sheet = workbook[sheet_name]
-            # 既存のシートをクリア
-            for row in sheet[sheet.min_row : sheet.max_row]:
-                for cell in row:
-                    cell.value = None
-        else:
-            sheet = workbook.create_sheet(title=sheet_name)
+            del workbook[sheet_name]
+        sheet = workbook.create_sheet(title=sheet_name)
 
         # データをシートに書き込む（1行目から開始）
         for row in dataframe_to_rows(df, index=False, header=True):
@@ -442,6 +438,9 @@ def export_g_quality_data(g_quality_data, original_file_path, g_quality_graph_pa
         workbook.save(output_file_path)
         return output_file_path
     except PermissionError as e:
-        raise ValueError(f"{output_file_path} に書き込みできません。ファイルが開かれている可能性があります。") from e
+        raise ExportError(
+            f"{output_file_path} に書き込みできません。ファイルが開かれている可能性があります。",
+            file_path=str(output_file_path),
+        ) from e
     except Exception as e:
-        raise ValueError(f"データの保存中にエラーが発生しました: {e}") from e
+        raise ExportError(f"データの保存中にエラーが発生しました: {e}", file_path=str(output_file_path)) from e

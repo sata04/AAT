@@ -4,6 +4,7 @@ import pandas as pd
 import pytest
 from openpyxl import load_workbook
 
+from core.exceptions import ExportError
 from core.export import create_output_directories, export_data, export_g_quality_data
 
 
@@ -197,7 +198,7 @@ def test_export_data_handles_write_permission_error(tmp_path, sample_config, raw
 
     monkeypatch.setattr("pandas.ExcelWriter", mock_excel_writer)
 
-    with pytest.raises(ValueError) as exc_info:
+    with pytest.raises(ExportError) as exc_info:
         export_data(
             time=raw_data_frame["time_s"],
             adjusted_time=raw_data_frame["time_s"],
