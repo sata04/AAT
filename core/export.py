@@ -116,7 +116,7 @@ def export_data(
         str: 出力されたExcelファイルのパス
 
     Raises:
-        ValueError: データのエクスポート中にエラーが発生した場合
+        ExportError: データのエクスポート中にエラーが発生した場合
     """
     confirm_overwrite = confirm_overwrite or _default_confirm_overwrite
     notify_warning = notify_warning or _default_notify_warning
@@ -366,7 +366,7 @@ def export_g_quality_data(g_quality_data, original_file_path, g_quality_graph_pa
         str or None: 出力されたExcelファイルのパス、または失敗した場合はNone
 
     Raises:
-        ValueError: データのエクスポート中にエラーが発生した場合
+        ExportError: データのエクスポート中にエラーが発生した場合
     """
     # CSVファイルのディレクトリとファイル名を取得
     file_path_obj = Path(original_file_path)

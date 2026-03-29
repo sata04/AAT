@@ -17,7 +17,7 @@
 - Pre-commit: `uv run pre-commit install && uv run pre-commit run --all-files`
 
 ## Coding Style & Naming Conventions
-- Python ≥ 3.9. Line length 120, spaces for indent, double quotes (ruff formatter).
+- Python ≥ 3.10. Line length 120, spaces for indent, double quotes (ruff formatter).
 - Imports sorted by ruff (isort rules). Keep `core`/`gui` as first-party.
 - Names: modules/files `snake_case.py`; classes `PascalCase`; functions/vars `snake_case`.
 - Prefer small, pure functions in `core/`; keep GUI side-effects in `gui/`.
