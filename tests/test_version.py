@@ -1,6 +1,5 @@
 """Tests for version module."""
 
-from pathlib import Path
 from unittest.mock import Mock, patch
 
 import pytest
@@ -50,29 +49,22 @@ class TestReadFromPyproject:
 
     def test_read_from_pyproject_file_not_exists(self):
         """Test handling when pyproject.toml doesn't exist."""
-        # Mock Path to return non-existent file
         with patch("core.version.Path") as mock_path:
             mock_pyproject = Mock()
             mock_pyproject.exists.return_value = False
             mock_path.return_value.resolve.return_value.parent.parent.__truediv__.return_value = mock_pyproject
             result = version._read_from_pyproject()
-            # Function should return None when file doesn't exist
-            assert result is None or result is not None  # Gracefully handled
+            assert result is None
 
     def test_read_from_pyproject_file_read_error(self):
         """Test handling when file can't be read."""
-        # Mock read_text to raise an exception
-        with (
-            patch("core.version.Path") as mock_path_class,
-            patch.object(Path, "read_text", side_effect=PermissionError("Access denied")),
-        ):
+        with patch("core.version.Path") as mock_path_class:
             mock_path = Mock()
             mock_path.exists.return_value = True
             mock_path.read_text.side_effect = PermissionError("Access denied")
             mock_path_class.return_value.resolve.return_value.parent.parent.__truediv__.return_value = mock_path
             result = version._read_from_pyproject()
-            # Function should handle this gracefully
-            assert result is None or result is not None
+            assert result is None
 
     @pytest.mark.skipif(not hasattr(version, "tomllib") or version.tomllib is None, reason="tomllib not available")
     def test_read_from_pyproject_with_tomllib(self, tmp_path):
@@ -83,38 +75,18 @@ class TestReadFromPyproject:
 
     def test_read_from_pyproject_string_parsing_fallback(self, tmp_path, monkeypatch):
         """Test string parsing fallback when tomllib is not available."""
-        # Create a test pyproject.toml
-        pyproject_content = """[project]
-name = "AAT"
-version = "9.9.9"
-"""
+        pyproject_content = '[project]\nname = "AAT"\nversion = "9.9.9"\n'
         pyproject_path = tmp_path / "pyproject.toml"
         pyproject_path.write_text(pyproject_content)
 
-        # Mock tomllib to be None to force string parsing
-        with (
-            patch("core.version.tomllib", None),
-            patch("core.version.Path") as mock_path_class,
-        ):
+        with patch("core.version.tomllib", None):
             mock_path = Mock()
             mock_path.exists.return_value = True
             mock_path.read_text.return_value = pyproject_content
-            mock_path_class.return_value.resolve.return_value.parent.parent.__truediv__.return_value = mock_path
-
-            # Re-import to get fresh state, or directly call the function
-            # For testing, we'll directly test the string parsing logic
-            in_project_section = False
-            for line in pyproject_content.splitlines():
-                stripped = line.strip()
-                if stripped.startswith("[") and stripped.endswith("]"):
-                    in_project_section = stripped.strip("[]") == "project"
-                    continue
-
-                if in_project_section and stripped.startswith("version"):
-                    parts = stripped.split("=", maxsplit=1)
-                    if len(parts) == 2:
-                        parsed_version = parts[1].strip().strip('"').strip("'")
-                        assert parsed_version == "9.9.9"
+            with patch("core.version.Path") as mock_path_class:
+                mock_path_class.return_value.resolve.return_value.parent.parent.__truediv__.return_value = mock_path
+                result = version._read_from_pyproject()
+                assert result == "9.9.9"
 
 
 class TestResolveVersion:

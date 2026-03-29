@@ -2,7 +2,13 @@ import pandas as pd
 import pytest
 
 from core.data_processor import detect_columns, filter_data, load_and_process_data
-from core.exceptions import ColumnNotFoundError, DataLoadError
+from core.exceptions import (
+    ColumnNotFoundError,
+    DataLoadError,
+    DataProcessingError,
+    InsufficientDataError,
+    SyncPointNotFoundError,
+)
 
 
 def test_detect_columns_returns_time_and_acceleration_candidates(sample_csv_file):
@@ -205,16 +211,12 @@ def test_load_and_process_data_small_dataset(tmp_path, sample_config):
     csv_path = tmp_path / "small.csv"
     csv_path.write_text(data)
 
-    # Should handle gracefully, likely returning empty or single-row series
-    # Depending on implementation, it might raise InsufficientDataError or just return what it can
+    # Should handle gracefully — either returns valid data or raises a specific processing error
     try:
         time, ic, ds, adj_time = load_and_process_data(str(csv_path), sample_config)
-        # If it returns, check types
         assert isinstance(time, pd.Series)
-    except Exception:
-        # If it raises, that's also acceptable for 1 row, but we want to know which exception
-        # For now, let's assume it should run without crashing
-        pass
+    except (InsufficientDataError, SyncPointNotFoundError, DataProcessingError):
+        pass  # These specific exceptions are acceptable for 1-row data
 
 
 def test_load_and_process_data_non_monotonic_time(tmp_path, sample_config):
@@ -250,11 +252,12 @@ def test_load_and_process_data_missing_values(tmp_path, sample_config):
 def test_detect_columns_encoding_error(tmp_path):
     """Test column detection with encoding error fallback."""
     csv_path = tmp_path / "encoding.csv"
-    # Write invalid utf-8 sequence that might be valid cp932
     csv_path.write_bytes(b"\x80\x81\x82")
 
     # Should NOT raise DataLoadError if fallback works
-    detect_columns(str(csv_path))
+    time_cols, acc_cols = detect_columns(str(csv_path))
+    assert isinstance(time_cols, list)
+    assert isinstance(acc_cols, list)
 
 
 def test_detect_columns_empty_file(tmp_path):
