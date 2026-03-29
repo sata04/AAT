@@ -1231,7 +1231,6 @@ class MainWindow(QMainWindow):
 
                         # 再度データの読み込みを試みる
                         try:
-                            raw_data = pd.read_csv(file_path)
                             self.file_progress_bar.setValue(20)
                             QApplication.processEvents()
 
@@ -1904,16 +1903,17 @@ class MainWindow(QMainWindow):
             logger.warning("original_file_pathが空です。グラフを保存できません。")
             return None
 
-        # エクスポート用の設定を取得
-        export_width = config.get("export_figure_width", 10)
-        export_height = config.get("export_figure_height", 6)
-        export_dpi = config.get("export_dpi", 300)
-        export_bbox = config.get("export_bbox_inches", None)
-        bbox_inches = "tight" if export_bbox == "tight" else None
-
-        # エクスポート用のfigureを作成
-        export_fig = plt.figure(figsize=(export_width, export_height))
+        export_fig = None
         try:
+            # エクスポート用の設定を取得
+            export_width = config.get("export_figure_width", 10)
+            export_height = config.get("export_figure_height", 6)
+            export_dpi = config.get("export_dpi", 300)
+            export_bbox = config.get("export_bbox_inches", None)
+            bbox_inches = "tight" if export_bbox == "tight" else None
+
+            # エクスポート用のfigureを作成
+            export_fig = plt.figure(figsize=(export_width, export_height))
             export_ax = export_fig.add_subplot(111)
 
             # グラフを再描画（エクスポート用）
@@ -1964,7 +1964,8 @@ class MainWindow(QMainWindow):
             logger.error(f"グラフの保存中にエラーが発生しました: {e}")
             return None
         finally:
-            plt.close(export_fig)
+            if export_fig is not None:
+                plt.close(export_fig)
 
     def plot_comparison(self):
         """
@@ -2186,9 +2187,10 @@ class MainWindow(QMainWindow):
         export_bbox = self.config.get("export_bbox_inches", None)
         bbox_inches = "tight" if export_bbox == "tight" else None
 
-        # エクスポート用のfigureを作成
-        export_fig = plt.figure(figsize=(export_width, export_height))
+        export_fig = None
         try:
+            # エクスポート用のfigureを作成
+            export_fig = plt.figure(figsize=(export_width, export_height))
             export_ax = export_fig.add_subplot(111)
 
             # グラフを再描画（エクスポート用）
@@ -2243,7 +2245,6 @@ class MainWindow(QMainWindow):
             export_fig.tight_layout()
 
             # 出力ディレクトリ構造を作成（export.pyと同じロジック）
-
             csv_dir = os.path.dirname(original_file_path)
             logger.debug(f"G-quality: CSV directory: {csv_dir}")
             logger.debug(f"G-quality: Original file path: {original_file_path}")
@@ -2258,8 +2259,13 @@ class MainWindow(QMainWindow):
 
             self.canvas.draw()
             return graph_path
+        except Exception as e:
+            logger.error(f"G-qualityグラフの保存中にエラーが発生しました: {e}")
+            self.canvas.draw()
+            return None
         finally:
-            plt.close(export_fig)
+            if export_fig is not None:
+                plt.close(export_fig)
 
     def show_all_data(self, data):
         """

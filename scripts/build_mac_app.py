@@ -47,7 +47,17 @@ def _detect_default_icon() -> Path:
     )
 
 
-DEFAULT_ICON = _detect_default_icon()
+DEFAULT_ICON: Path | None = None
+
+
+def _get_default_icon() -> Path:
+    """デフォルトアイコンのパスを遅延取得する。"""
+    global DEFAULT_ICON
+    if DEFAULT_ICON is None:
+        DEFAULT_ICON = _detect_default_icon()
+    return DEFAULT_ICON
+
+
 BUILD_DIR = PROJECT_ROOT / "build"
 RESOURCES_DIR = BUILD_DIR / "resources"
 DIST_DIR = BUILD_DIR / "dist"
@@ -100,7 +110,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument(
         "--icon",
         type=Path,
-        default=DEFAULT_ICON,
+        default=None,
         help="アプリケーションアイコンへのパス (.icns または .ico/.png)。省略時は resources/packaging/icons の既定アイコンを使用",
     )
     parser.add_argument(
@@ -163,9 +173,6 @@ def generate_icns(icon_path: Path, output_path: Path) -> Path:
 
     if platform.system() != "Darwin":
         raise RuntimeError(".ico から .icns への変換はmacOSでのみサポートされています。事前に.icnsを用意してください。")
-
-    if not icon_path.exists():
-        raise FileNotFoundError(f"アイコンファイルが見つかりません: {icon_path}")
 
     if not shutil.which("iconutil"):
         raise RuntimeError("iconutil が見つかりません。Xcode Command Line Tools をインストールしてください。")
@@ -449,7 +456,7 @@ def _resolve_background(path_from_cli: Path) -> Path:
 
 def main() -> None:
     args = parse_args()
-    icon_to_use = prepare_icon(args.icon)
+    icon_to_use = prepare_icon(args.icon if args.icon is not None else _get_default_icon())
     app_path = build_app(icon_to_use, args.bundle_identifier)
     version = read_project_version()
     update_info_plist(app_path, version)
