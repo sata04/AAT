@@ -83,7 +83,7 @@ def calculate_statistics(
         rolling_mean_sq = np.where(count > 0, sum_x2 / count, np.nan)
         means = np.where(count > 0, sum_abs / count, np.nan)
         # var = E[X²] - E[X]², 数値誤差で微小な負値になり得るので0にクランプ
-        variance = np.maximum(rolling_mean_sq - rolling_mean**2, 0.0)
+        variance = np.where(count <= 1, 0.0, np.maximum(rolling_mean_sq - rolling_mean**2, 0.0))
         std_devs = np.sqrt(variance)
         # 有効値0のウィンドウはNaN
         std_devs = np.where(count > 0, std_devs, np.nan)
