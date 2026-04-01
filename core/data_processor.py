@@ -220,8 +220,8 @@ def load_and_process_data(file_path: str, config: dict[str, Any]) -> tuple[pd.Se
             gravity_level_drag_shield,
             adjusted_time_drag,
         )
-    except ColumnNotFoundError:
-        # カスタム例外はそのまま再送出
+    except (ColumnNotFoundError, DataProcessingError):
+        # GUI側で分岐するカスタム例外はそのまま再送出
         raise
     except Exception as e:
         log_exception(e, "データの読み込み中にエラーが発生しました")

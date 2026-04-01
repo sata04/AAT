@@ -304,3 +304,11 @@ def test_load_and_process_data_file_not_found(sample_config):
     """Test loading non-existent file."""
     with pytest.raises(DataLoadError):
         load_and_process_data("non_existent.csv", sample_config)
+
+
+def test_load_and_process_data_raises_processing_error_for_zero_gravity_constant(sample_csv_file, sample_config):
+    """Test that invalid gravity constants surface as DataProcessingError."""
+    broken_config = sample_config | {"gravity_constant": 0}
+
+    with pytest.raises(DataProcessingError, match="重力定数が0に設定されています"):
+        load_and_process_data(sample_csv_file, broken_config)

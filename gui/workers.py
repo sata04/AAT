@@ -62,6 +62,7 @@ class GQualityWorker(QThread):
         self.file_index = file_index
         self.total_files = total_files
         self.is_running = True
+        self.error_message = None
 
     def get_results(self):
         """
@@ -71,6 +72,10 @@ class GQualityWorker(QThread):
             list: G-quality解析結果
         """
         return getattr(self, "g_quality_data", [])
+
+    def get_error_message(self):
+        """直近の実行で発生したエラーメッセージを返す。"""
+        return self.error_message
 
     def stop(self):
         """
@@ -98,6 +103,7 @@ class GQualityWorker(QThread):
         異なるウィンドウサイズでの重力レベル統計を計算し、
         結果をリストとして返します。進捗状況は進捗シグナルを通じて通知します。
         """
+        self.error_message = None
         try:
             # データサイズの事前チェック
             data_length_inner = len(self.filtered_gravity_level_inner_capsule)
@@ -248,8 +254,9 @@ class GQualityWorker(QThread):
 
         except Exception as e:
             log_exception(e, "G-quality解析中に予期せぬエラーが発生しました")
+            self.error_message = str(e)
             self.status_update.emit("エラーが発生しました")
-            self.error_occurred.emit(str(e))
+            self.error_occurred.emit(self.error_message)
             # 例外発生時も空のリスト結果を保存
             self.g_quality_data = []
             self.finished.emit([])  # 空リストを返す
