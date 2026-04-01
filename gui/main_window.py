@@ -48,7 +48,7 @@ from PySide6.QtWidgets import (
 from core.cache_manager import delete_cache
 from core.config import load_config, save_config
 from core.data_processor import detect_columns, filter_data, load_and_process_data
-from core.exceptions import ColumnNotFoundError
+from core.exceptions import ColumnNotFoundError, DataProcessingError
 from core.export import create_output_directories, export_data, export_g_quality_data
 from core.logger import get_logger, log_exception
 from core.paths import resolve_base_dir
@@ -1489,6 +1489,7 @@ class MainWindow(QMainWindow):
         # シグナルを接続
         worker.progress.connect(self.file_progress_bar.setValue)
         worker.status_update.connect(self.processing_status_label.setText)
+        worker.error_occurred.connect(lambda msg: logger.error(f"G-quality解析エラー: {msg}"))
 
         worker.start()
         while worker.isRunning():
@@ -1496,6 +1497,10 @@ class MainWindow(QMainWindow):
             worker.wait(10)
 
         self._current_g_quality_worker = None
+        error_message = worker.get_error_message()
+        if error_message:
+            raise DataProcessingError(f"{dataset_name} のG-quality解析に失敗しました", error_message)
+
         g_quality_data = worker.get_results()
 
         # 結果を保存
@@ -2534,16 +2539,31 @@ class MainWindow(QMainWindow):
         self._current_g_quality_worker = worker
         worker.progress.connect(self.file_progress_bar.setValue)
         worker.status_update.connect(self.processing_status_label.setText)
+        worker.error_occurred.connect(lambda msg: logger.error(f"G-quality解析エラー: {msg}"))
         worker.finished.connect(
-            lambda result, ds=dataset_name, fp=original_file_path: self._on_g_quality_batch_item_finished(
-                result, ds, fp
+            lambda result, ds=dataset_name, fp=original_file_path, current_worker=worker: self._on_g_quality_batch_item_finished(
+                result,
+                ds,
+                fp,
+                current_worker.get_error_message(),
             )
         )
+        worker.finished.connect(worker.deleteLater)
         worker.start()
 
-    def _on_g_quality_batch_item_finished(self, g_quality_data, dataset_name, original_file_path):
+    def _on_g_quality_batch_item_finished(self, g_quality_data, dataset_name, original_file_path, error_message=None):
         """バッチ処理の1アイテム完了時のコールバック"""
         self._current_g_quality_worker = None
+
+        if error_message:
+            self.processing_status_label.setText(f"G-quality解析に失敗しました: {dataset_name}")
+            self._show_error_dialog(
+                "G-quality解析エラー",
+                f"{dataset_name} のG-quality解析に失敗しました。",
+                detail=error_message,
+            )
+            self._process_next_g_quality_batch_item()
+            return
 
         # 結果を保存
         self.processed_data[dataset_name]["g_quality_data"] = g_quality_data
@@ -2627,8 +2647,14 @@ class MainWindow(QMainWindow):
         )
         self.workers.append(worker)
         worker.progress.connect(self.update_progress)
+        worker.error_occurred.connect(lambda msg: logger.error(f"G-quality解析エラー: {msg}"))
         worker.finished.connect(
-            lambda result: self.on_g_quality_analysis_finished(result, file_name, original_file_path)
+            lambda result, current_worker=worker: self.on_g_quality_analysis_finished(
+                result,
+                file_name,
+                original_file_path,
+                current_worker.get_error_message(),
+            )
         )
         worker.finished.connect(worker.deleteLater)
         worker.finished.connect(lambda: self.remove_worker(worker))
@@ -2651,12 +2677,21 @@ class MainWindow(QMainWindow):
                 data.get("filtered_adjusted_time"),
             )
 
-    def on_g_quality_analysis_finished(self, g_quality_data, file_name, original_file_path):
+    def on_g_quality_analysis_finished(self, g_quality_data, file_name, original_file_path, error_message=None):
         """
         G-quality解析が完了した時の処理
         """
         self.progress_bar.setVisible(False)
         self.is_g_quality_analysis_running = False
+
+        if error_message:
+            self.processing_status_label.setText(f"G-quality解析に失敗しました: {file_name}")
+            self._show_error_dialog(
+                "G-quality解析エラー",
+                f"{file_name} のG-quality解析に失敗しました。",
+                detail=error_message,
+            )
+            return
 
         # 結果を保存
         if file_name not in self.processed_data:
