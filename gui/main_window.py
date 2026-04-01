@@ -22,7 +22,7 @@ from matplotlib import font_manager
 from matplotlib.backends.backend_qt import NavigationToolbar2QT as NavigationToolbar
 from matplotlib.backends.backend_qtagg import FigureCanvasQTAgg as FigureCanvas
 from matplotlib.widgets import SpanSelector
-from PySide6.QtCore import QEventLoop, QMutex, Qt, QTimer
+from PySide6.QtCore import QMutex, Qt, QTimer
 from PySide6.QtGui import QAction, QActionGroup, QKeySequence
 from PySide6.QtWidgets import (
     QApplication,
@@ -1483,17 +1483,17 @@ class MainWindow(QMainWindow):
             data["filtered_adjusted_time"],
         )
 
-        # QEventLoopで非同期実行（UIスレッドをブロックせずに完了を待つ）
+        # ワーカーを起動し、完了までポーリングで待機（QEventLoop不使用）
         self._current_g_quality_worker = worker
 
         # シグナルを接続
         worker.progress.connect(self.file_progress_bar.setValue)
         worker.status_update.connect(self.processing_status_label.setText)
 
-        loop = QEventLoop()
-        worker.finished.connect(loop.quit)
         worker.start()
-        loop.exec()
+        while worker.isRunning():
+            QApplication.processEvents()
+            worker.wait(10)
 
         self._current_g_quality_worker = None
         g_quality_data = worker.get_results()
@@ -2451,15 +2451,16 @@ class MainWindow(QMainWindow):
                     )
 
                     if reply == QMessageBox.StandardButton.Yes:
-                        # 必要なデータセットのG-quality評価を実行
-                        total_missing = len(missing_data_sets)
+                        # 必要なデータセットのG-quality評価をキュー方式で順次実行
+                        self._g_quality_batch_queue = list(enumerate(missing_data_sets))
+                        self._g_quality_batch_total = len(missing_data_sets)
 
                         # 進捗表示の初期化
                         self.progress_label.setText("G-quality評価の進捗:")
                         self.progress_label.setVisible(True)
                         self.progress_bar.setVisible(True)
                         self.progress_bar.setValue(0)
-                        self.progress_bar.setMaximum(total_missing)
+                        self.progress_bar.setMaximum(self._g_quality_batch_total)
 
                         # ファイル進捗表示の初期化
                         self.file_progress_label.setText("現在のファイル処理進捗:")
@@ -2473,22 +2474,8 @@ class MainWindow(QMainWindow):
 
                         QApplication.processEvents()
 
-                        # G-quality評価を順次実行
-                        for idx, dataset_name in enumerate(missing_data_sets):
-                            self.progress_bar.setValue(idx)
-                            self.calculate_g_quality_for_dataset(dataset_name, idx, total_missing)
-
-                        self.progress_bar.setValue(total_missing)
-                        self.processing_status_label.setText("G-quality評価が完了しました")
-
-                        # 3秒後にプログレスバーを非表示にする
-                        QTimer.singleShot(3000, self.hide_progress_bars)
-
-                        # 処理完了後の表示更新
-                        self.g_quality_mode_button.setText("通常モードに戻る")
-                        self.g_quality_mode_button.setEnabled(True)
-                        self.update_table()
-                        self.update_selected_dataset()
+                        # キューから順次処理を開始
+                        self._process_next_g_quality_batch_item()
                     else:
                         # 評価せずにモードを切り替え
                         self.g_quality_mode_button.setText("通常モードに戻る")
@@ -2503,6 +2490,100 @@ class MainWindow(QMainWindow):
             self.update_selected_dataset()
             logger.info("通常モードに戻ります")
 
+        self.update_button_visibility()
+        if self.is_comparing:
+            self.plot_comparison()
+        self._sync_menu_state()
+        self._refresh_badges()
+
+    def _process_next_g_quality_batch_item(self):
+        """キューから次のデータセットを取り出してG-quality評価を実行する"""
+        if not self._g_quality_batch_queue:
+            self._on_g_quality_batch_complete()
+            return
+
+        idx, dataset_name = self._g_quality_batch_queue.pop(0)
+        self.progress_bar.setValue(idx)
+
+        if dataset_name not in self.processed_data:
+            logger.warning(f"データセットが見つかりません: {dataset_name}")
+            QTimer.singleShot(0, self._process_next_g_quality_batch_item)
+            return
+
+        data = self.processed_data[dataset_name]
+        original_file_path = self.file_paths.get(dataset_name)
+        total = self._g_quality_batch_total
+
+        if "g_quality_data" in data:
+            logger.info(f"G-quality評価は既に存在します: {dataset_name}")
+            QTimer.singleShot(0, self._process_next_g_quality_batch_item)
+            return
+
+        self.processing_status_label.setText(f"G-quality評価を計算中... ({idx + 1}/{total})")
+        QApplication.processEvents()
+
+        worker = GQualityWorker(
+            data["filtered_time"],
+            data["filtered_gravity_level_inner_capsule"],
+            data["filtered_gravity_level_drag_shield"],
+            self.config,
+            idx,
+            total,
+            data["filtered_adjusted_time"],
+        )
+        self._current_g_quality_worker = worker
+        worker.progress.connect(self.file_progress_bar.setValue)
+        worker.status_update.connect(self.processing_status_label.setText)
+        worker.finished.connect(
+            lambda result, ds=dataset_name, fp=original_file_path: self._on_g_quality_batch_item_finished(
+                result, ds, fp
+            )
+        )
+        worker.start()
+
+    def _on_g_quality_batch_item_finished(self, g_quality_data, dataset_name, original_file_path):
+        """バッチ処理の1アイテム完了時のコールバック"""
+        self._current_g_quality_worker = None
+
+        # 結果を保存
+        self.processed_data[dataset_name]["g_quality_data"] = g_quality_data
+
+        # G-qualityグラフを描画
+        graph_path = self.plot_g_quality_data(g_quality_data, dataset_name)
+
+        # 結果をファイルに保存（グラフパスも渡す）
+        if original_file_path:
+            export_g_quality_data(g_quality_data, original_file_path, graph_path)
+        # キャッシュに保存
+        if self.config.get("use_cache", True) and original_file_path:
+            from core.cache_manager import generate_cache_id, save_to_cache
+
+            cache_id = generate_cache_id(original_file_path, self.config)
+            save_to_cache(
+                self.processed_data[dataset_name],
+                original_file_path,
+                cache_id,
+                self.config,
+            )
+
+        logger.info(f"G-quality評価が完了しました: {dataset_name}")
+
+        # 次のアイテムを処理
+        self._process_next_g_quality_batch_item()
+
+    def _on_g_quality_batch_complete(self):
+        """バッチG-quality処理がすべて完了した際のUI更新"""
+        self.progress_bar.setValue(self._g_quality_batch_total)
+        self.processing_status_label.setText("G-quality評価が完了しました")
+
+        # 3秒後にプログレスバーを非表示にする
+        QTimer.singleShot(3000, self.hide_progress_bars)
+
+        # 処理完了後の表示更新
+        self.g_quality_mode_button.setText("通常モードに戻る")
+        self.g_quality_mode_button.setEnabled(True)
+        self.update_table()
+        self.update_selected_dataset()
         self.update_button_visibility()
         if self.is_comparing:
             self.plot_comparison()
