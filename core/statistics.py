@@ -40,10 +40,6 @@ def calculate_statistics(
     sampling_rate: int = int(config.get("sampling_rate", 1000))
     window_size_samples: int = max(1, round(window_size * sampling_rate))
 
-    std_devs: list[float] | np.ndarray = []
-    means: list[float] | np.ndarray = []
-    times: list[float] | np.ndarray = []
-
     # データ長の一致を確認
     if len(gravity_level) != len(time):
         raise ValueError(
@@ -54,24 +50,50 @@ def calculate_statistics(
     if len(gravity_level) < window_size_samples:
         return None, None, None
 
-    # numpy配列に変換してパフォーマンスを向上
-    gravity_array: np.ndarray = np.asarray(gravity_level.values)
-    time_array: np.ndarray = np.asarray(time.values)
+    # numpy配列に変換
+    gravity_array: np.ndarray = np.asarray(gravity_level.values, dtype=np.float64)
+    time_array: np.ndarray = np.asarray(time.values, dtype=np.float64)
 
-    # 事前割り当てでメモリ効率を改善
-    num_windows = len(gravity_level) - window_size_samples + 1
-    std_devs = np.empty(num_windows)
-    means = np.empty(num_windows)
-    times = np.empty(num_windows)
+    num_windows = len(gravity_array) - window_size_samples + 1
 
-    # スライディングウィンドウで計算（numpy配列で高速化）
-    for i in range(num_windows):
-        window = gravity_array[i : i + window_size_samples]
-        std_devs[i] = float(np.nanstd(window))
-        means[i] = float(np.nanmean(np.abs(window)))  # 絶対値の平均を計算
-        times[i] = time_array[i]
+    # NaN対応のベクトル化ローリング計算 O(n)
+    # NaNを0に置換し、有効値のカウントを別途追跡する
+    valid_mask = ~np.isnan(gravity_array)
+    safe_vals = np.where(valid_mask, gravity_array, 0.0)
+    abs_vals = np.where(valid_mask, np.abs(gravity_array), 0.0)
+    sq_vals = np.where(valid_mask, gravity_array**2, 0.0)
+    valid_f = valid_mask.astype(np.float64)
 
-    if len(std_devs) == 0 or np.all(np.isnan(std_devs)):
+    # 累積和によるローリングウィンドウ集計（O(n)）
+    def _rolling_sum(arr: np.ndarray, w: int) -> np.ndarray:
+        cs = np.empty(len(arr) + 1, dtype=np.float64)
+        cs[0] = 0.0
+        np.cumsum(arr, out=cs[1:])
+        return cs[w:] - cs[:-w]
+
+    w = window_size_samples
+    count = _rolling_sum(valid_f, w)  # 各ウィンドウの有効値数
+    sum_x = _rolling_sum(safe_vals, w)  # Σx
+    sum_x2 = _rolling_sum(sq_vals, w)  # Σx²
+    sum_abs = _rolling_sum(abs_vals, w)  # Σ|x|
+
+    # ウィンドウ内に有効値がない場合はNaN
+    with np.errstate(invalid="ignore", divide="ignore"):
+        rolling_mean = np.where(count > 0, sum_x / count, np.nan)
+        rolling_mean_sq = np.where(count > 0, sum_x2 / count, np.nan)
+        means = np.where(count > 0, sum_abs / count, np.nan)
+        # var = E[X²] - E[X]², 数値誤差で微小な負値になり得るので0にクランプ
+        variance = np.where(count <= 1, 0.0, np.maximum(rolling_mean_sq - rolling_mean**2, 0.0))
+        std_devs = np.sqrt(variance)
+        # 有効値0のウィンドウはNaN
+        std_devs = np.where(count > 0, std_devs, np.nan)
+
+    times = time_array[:num_windows]
+
+    if num_windows == 0 or np.all(np.isnan(std_devs)):
+        return None, None, None
+
+    if np.all(np.isnan(means)):
         return None, None, None
 
     # 最小標準偏差のインデックスを見つける（NaNを無視）

@@ -34,6 +34,18 @@ def test_calculate_statistics_raises_when_lengths_mismatch():
         calculate_statistics(gravity, time, config)
 
 
+def test_calculate_statistics_keeps_first_zero_std_window_with_single_valid_value():
+    time = pd.Series([0.0, 0.1, 0.2, 0.3])
+    gravity = pd.Series([-1.88732034, 2.5526307228991385, np.nan, -1.7469538079102378])
+    config = {"window_size": 0.2, "sampling_rate": 10}
+
+    mean_abs, start_time, min_std = calculate_statistics(gravity, time, config)
+
+    assert mean_abs == pytest.approx(2.5526307228991385)
+    assert start_time == pytest.approx(0.1)
+    assert min_std == pytest.approx(0.0)
+
+
 def test_calculate_range_statistics_handles_empty_array():
     stats = calculate_range_statistics(np.array([]))
 
