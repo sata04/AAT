@@ -1489,6 +1489,7 @@ class MainWindow(QMainWindow):
         # シグナルを接続
         worker.progress.connect(self.file_progress_bar.setValue)
         worker.status_update.connect(self.processing_status_label.setText)
+        worker.error_occurred.connect(lambda msg: logger.error(f"G-quality解析エラー: {msg}"))
 
         loop = QEventLoop()
         worker.finished.connect(loop.quit)
@@ -2546,6 +2547,7 @@ class MainWindow(QMainWindow):
         )
         self.workers.append(worker)
         worker.progress.connect(self.update_progress)
+        worker.error_occurred.connect(lambda msg: logger.error(f"G-quality解析エラー: {msg}"))
         worker.finished.connect(
             lambda result: self.on_g_quality_analysis_finished(result, file_name, original_file_path)
         )

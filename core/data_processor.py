@@ -198,12 +198,14 @@ def load_and_process_data(file_path: str, config: dict[str, Any]) -> tuple[pd.Se
         adjusted_time_inner = pd.Series(time - time.iloc[sync_index_inner]) if use_inner else pd.Series(dtype=float)
         adjusted_time_drag = pd.Series(time - time.iloc[sync_index_drag]) if use_drag else pd.Series(dtype=float)
 
+        gravity_constant = config["gravity_constant"]
+        if gravity_constant == 0:
+            raise DataProcessingError("重力定数が0に設定されています。設定を確認してください。")
+
         gravity_level_inner_capsule = (
-            acceleration_inner_capsule / config["gravity_constant"] if use_inner else pd.Series(dtype=float)
+            acceleration_inner_capsule / gravity_constant if use_inner else pd.Series(dtype=float)
         )
-        gravity_level_drag_shield = (
-            acceleration_drag_shield / config["gravity_constant"] if use_drag else pd.Series(dtype=float)
-        )
+        gravity_level_drag_shield = acceleration_drag_shield / gravity_constant if use_drag else pd.Series(dtype=float)
 
         # 処理結果のサンプル値をログに記録
         logger.debug(

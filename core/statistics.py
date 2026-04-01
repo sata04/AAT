@@ -75,6 +75,11 @@ def calculate_statistics(
         return None, None, None
 
     # 最小標準偏差のインデックスを見つける（NaNを無視）
+    # nanargminは全NaN配列に対してValueErrorを送出するが、上のチェックで除外済み
+    # 念のためmeans側のNaNも考慮
+    if np.all(np.isnan(means)):
+        return None, None, None
+
     min_std_index: int = int(np.nanargmin(std_devs))
     return float(means[min_std_index]), float(times[min_std_index]), float(std_devs[min_std_index])
 

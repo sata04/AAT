@@ -94,6 +94,7 @@ def generate_cache_id(file_path, config):
         "end_gravity_level",
         "min_seconds_after_start",
         "invert_inner_acceleration",
+        "window_size",
         "app_version",
     ]
 
@@ -183,6 +184,7 @@ def save_to_cache(processed_data, file_path, cache_id, config):
         data_to_save = copy.deepcopy(processed_data)
 
         # Pandasオブジェクトが安全に保存されているか確認
+        raw_data_cache_path = None
         if "raw_data" in data_to_save:
             # rawデータはサイズが大きいため、サイズ削減のためにhdfで保存
             cache_path_obj = Path(cache_path)
@@ -193,9 +195,19 @@ def save_to_cache(processed_data, file_path, cache_id, config):
         # メタデータを追加
         data_to_save["_metadata"] = cache_metadata
 
-        # キャッシュに保存
-        with open(cache_path, "wb") as f:
-            pickle.dump(data_to_save, f)
+        # キャッシュに保存（失敗時はHDF5ファイルも削除）
+        try:
+            with open(cache_path, "wb") as f:
+                pickle.dump(data_to_save, f)
+        except Exception:
+            # pickle保存に失敗した場合、先に書いたHDF5を掃除
+            if raw_data_cache_path is not None and raw_data_cache_path.exists():
+                try:
+                    raw_data_cache_path.unlink()
+                    logger.warning(f"pickle保存失敗のため孤立HDF5を削除: {raw_data_cache_path}")
+                except OSError:
+                    logger.error(f"孤立HDF5の削除に失敗: {raw_data_cache_path}")
+            raise
 
         logger.info(f"データをキャッシュに保存しました: {cache_path}")
         return True

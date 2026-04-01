@@ -1,4 +1,4 @@
-# 🚀 AAT (Acceleration Analysis Tool) v10.0.0
+# 🚀 AAT (Acceleration Analysis Tool) v10.1.0
 
 > 微小重力環境の実験データを簡単に分析・可視化するためのデスクトップアプリケーション
 
@@ -108,7 +108,7 @@ python scripts/build_mac_app.py
 | ウィンドウサイズ | 分析の時間窓 | 0.1秒 |
 | キャッシュ使用 | 高速処理の有効化 | ON |
 | G-quality自動計算 | 読み込み時の自動評価 | ON |
-| Inner加速度反転 | センサーの向き補正 | OFF |
+| Inner加速度反転 | センサーの向き補正 | ON |
 
 設定はOS標準のユーザー設定ディレクトリに自動保存されます（mac: `~/Library/Application Support/AAT/config.json`、Windows: `%APPDATA%\\AAT\\config.json`、Linux/WSL: `$XDG_CONFIG_HOME/AAT/config.json`）。保存先を変えたい場合は環境変数`AAT_CONFIG_DIR`を指定してください。旧仕様の`./config.json`がある場合は初回起動時に自動移行します。
 

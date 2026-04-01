@@ -29,6 +29,7 @@ class GQualityWorker(QThread):
     status_update = Signal(str)  # 状態更新用シグナル
     overall_progress = Signal(int, int)  # 全体の進捗用シグナル (現在のファイル, 総ファイル数)
     finished = Signal(list)  # 結果送信用シグナル
+    error_occurred = Signal(str)  # エラー通知用シグナル
 
     def __init__(
         self,
@@ -248,6 +249,7 @@ class GQualityWorker(QThread):
         except Exception as e:
             log_exception(e, "G-quality解析中に予期せぬエラーが発生しました")
             self.status_update.emit("エラーが発生しました")
+            self.error_occurred.emit(str(e))
             # 例外発生時も空のリスト結果を保存
             self.g_quality_data = []
             self.finished.emit([])  # 空リストを返す
