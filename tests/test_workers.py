@@ -121,6 +121,23 @@ def test_worker_error_handling(qtbot, sample_config):
         assert blocker.args[0] == []
 
 
+def test_worker_emits_error_signal_and_stores_message(qtbot, sample_config):
+    """Test that top-level worker failures are exposed to callers."""
+    time_data = pd.Series([0.0, 0.1])
+    gravity_inner = pd.Series([0.0, 0.1])
+    gravity_drag = pd.Series([0.0, 0.1])
+    broken_config = sample_config.copy()
+    broken_config.pop("g_quality_start")
+
+    worker = GQualityWorker(time_data, gravity_inner, gravity_drag, broken_config, filtered_adjusted_time=time_data)
+
+    with qtbot.waitSignal(worker.error_occurred, timeout=5000) as blocker:
+        worker.run()
+
+    assert "g_quality_start" in blocker.args[0]
+    assert "g_quality_start" in worker.get_error_message()
+
+
 def test_worker_empty_data(sample_config):
     """Test worker behavior with empty data."""
     empty = pd.Series(dtype=float)

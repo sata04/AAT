@@ -25,5 +25,5 @@
     "export_dpi": 300,
     "export_bbox_inches": null,
     "invert_inner_acceleration": true,
-    "app_version": "10.0.0"
+    "app_version": "10.1.0"
 }
